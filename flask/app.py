@@ -1,49 +1,29 @@
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask
+from config import Config
+from routes import routes_bp   # import blueprint
+import threading
+import schedule
+import time
+from utils import check_and_send_reminders
 
 app = Flask(__name__)
+app.config.from_object(Config)
 
-# A simple in-memory structure to store tasks
-tasks = []
+# Register blueprint
+app.register_blueprint(routes_bp)
 
-@app.route('/', methods=['GET'])
-def home():
-    # Display existing tasks and a form to add a new task
-    html = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Todo List</title>
-</head>
-<body>
-    <h1>Todo List</h1>
-    <form action="/add" method="POST">
-        <input type="text" name="task" placeholder="Enter a new task">
-        <input type="submit" value="Add Task">
-    </form>
-    <ul>
-        {% for task in tasks %}
-        <li>{{ task }} <a href="/delete/{{ loop.index0 }}">x</a></li>
-        {% endfor %}
-    </ul>
-</body>
-</html>
-'''
-    return render_template_string(html, tasks=tasks)
+# Background scheduler for automated reminders
+def run_scheduler():
+    schedule.every().day.at("23:59").do(check_and_send_reminders)  # Run at end of day
+    
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
 
-@app.route('/add', methods=['POST'])
-def add_task():
-    # Add a new task from the form data
-    task = request.form.get('task')
-    if task:
-        tasks.append(task)
-    return home()
-
-@app.route('/delete/<int:index>', methods=['GET'])
-def delete_task(index):
-    # Delete a task based on its index
-    if index < len(tasks):
-        tasks.pop(index)
-    return home()
+# Start the scheduler in a separate thread
+scheduler_thread = threading.Thread(target=run_scheduler)
+scheduler_thread.daemon = True
+scheduler_thread.start()
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True)
