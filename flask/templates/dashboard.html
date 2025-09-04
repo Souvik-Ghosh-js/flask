@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Modern Dashboard Title -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="dashboard-title">📊 Dashboard</h1>
+    <a href="{{ url_for('routes.send_reminders') }}" class="btn btn-gradient-warning btn-lg shadow-sm">
+        🔔 Send Reminders Now
+    </a>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4 g-4">
+    <div class="col-md-4">
+        <div class="card shadow-lg rounded-4 gradient-primary text-white">
+            <div class="card-body text-center p-4">
+                <h5 class="card-title">Total Students</h5>
+                <p class="display-4 fw-bold">{{ total_students }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-lg rounded-4 gradient-success text-white">
+            <div class="card-body text-center p-4">
+                <h5 class="card-title">Paid Payments</h5>
+                <p class="display-4 fw-bold">{{ paid_count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-lg rounded-4 gradient-danger text-white">
+            <div class="card-body text-center p-4">
+                <h5 class="card-title">Unpaid Payments</h5>
+                <p class="display-4 fw-bold">{{ unpaid_count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs for Students and Payments -->
+<div class="card shadow-lg rounded-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <ul class="nav nav-tabs card-header-tabs" id="dashboardTabs">
+            <li class="nav-item">
+                <a class="nav-link active" id="students-tab" data-bs-toggle="tab" href="#students" role="tab">
+                    All Students
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="payments-tab" data-bs-toggle="tab" href="#payments" role="tab">
+                    All Payments
+                </a>
+            </li>
+        </ul>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('routes.export_csv', table='students') }}" 
+               class="btn btn-gradient-primary btn-sm">Export Students</a>
+            <a href="{{ url_for('routes.export_csv', table='payments') }}" 
+               class="btn btn-gradient-primary btn-sm">Export Payments</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="tab-content">
+            <!-- Students Tab -->
+            <div class="tab-pane fade show active" id="students" role="tabpanel">
+                <div class="table-responsive">
+                    <table id="studentsTable" class="table table-striped table-hover table-bordered modern-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Phone</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in students %}
+                            <tr>
+                                <td>{{ student.name }}</td>
+                                <td>{{ student.phone }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Payments Tab -->
+            <div class="tab-pane fade" id="payments" role="tabpanel">
+                <div class="table-responsive">
+                    <table id="paymentsTable" class="table table-striped table-hover table-bordered modern-table">
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Month</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in payments %}
+                            <tr>
+                                <td>{{ payment.students.name }}</td>
+                                <td>{{ payment.month }} {{ payment.year }}</td>
+                                <td>
+                                    <span class="badge rounded-pill status-badge 
+                                        {% if payment.status == 'paid' %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ payment.status|capitalize }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DataTables + Export -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.bootstrap5.min.css">
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+
+<script>
+$(document).ready(function () {
+    function initTable(id, title) {
+        let table = $(id).DataTable({
+            paging: true,
+            searching: true,
+            ordering: true,
+            pageLength: 10,
+            dom: 'Bfrtip',
+            buttons: [{
+                extend: 'csvHtml5',
+                text: 'Export CSV',
+                className: 'btn btn-gradient-primary btn-sm float-end',
+                title: title,
+                exportOptions: { columns: ':visible' }
+            }]
+        });
+        table.buttons().container().prependTo(id + '_wrapper');
+    }
+    initTable('#studentsTable', 'Students');
+    initTable('#paymentsTable', 'Payments');
+});
+</script>
+
+<style>
+/* Dashboard Title */
+
+
+
+.dashboard-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, #4e54c8, #8f94fb);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Gradient Cards */
+.gradient-primary { background: linear-gradient(135deg, #4e54c8, #8f94fb); }
+.gradient-success { background: linear-gradient(135deg, #28a745, #7de79d); }
+.gradient-danger  { background: linear-gradient(135deg, #dc3545, #ff7b7b); }
+
+/* Card Hover */
+.card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+.card:hover { transform: translateY(-5px); box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+
+/* Buttons Gradient */
+.btn-gradient-primary { 
+    background: linear-gradient(90deg, #4e54c8, #8f94fb); 
+    color: #fff; border: none;
+}
+.btn-gradient-primary:hover {
+    background: linear-gradient(90deg, #8f94fb, #4e54c8);
+}
+.btn-gradient-warning { 
+    background: linear-gradient(90deg, #ffc107, #ffca2c); 
+    color: #212529; border: none;
+}
+.btn-gradient-warning:hover { background: linear-gradient(90deg, #ffca2c, #ffc107); }
+
+/* Table Modern */
+.modern-table thead {
+    background: linear-gradient(90deg, #4e54c8, #8f94fb);
+    color: white;
+    font-weight: 600;
+}
+.modern-table tbody tr:nth-of-type(odd) { background-color: #f8f9fa; }
+.modern-table tbody tr:hover { background-color: #e3f2fd; }
+
+/* Status Badges */
+.status-badge {
+    font-weight: 500;
+    padding: 0.5em 0.8em;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+}
+.nav-tabs .nav-link {
+    color: #333;              /* Dark text for better readability */
+    font-weight: 600;         /* Bold */
+    background: linear-gradient(90deg, #a6a8c6, #8f94fb); /* Light background */
+    border: none;
+    border-radius: 0.5rem 0.5rem 0 0;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    color: #4e54c8;           /* Gradient color for hover */
+    background-color: #e9ecef;
+}
+
+.nav-tabs .nav-link.active {
+    color: #ffc107;            /* Bright yellow for active */
+    background: linear-gradient(90deg, #4e54c8, #8f94fb);
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.nav-tabs .nav-link.inactive {
+    color: #e3b21e;            /* Bright yellow for active */
+    background: linear-gradient(90deg, #4e54c8, #8f94fb);
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+</style>
+
+{% endblock %}

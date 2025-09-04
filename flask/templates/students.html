@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: #f0f4f8;
+    }
+
+    h2 {
+        text-align: center;
+        margin-top: 30px;
+        color: #333;
+    }
+
+    .add-btn {
+        display: block;
+        width: max-content;
+        margin: 20px auto;
+        padding: 10px 20px;
+        background: linear-gradient(45deg, #6a11cb, #2575fc);
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .add-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+
+    table {
+        width: 90%;
+        margin: 0 auto 50px auto;
+        border-collapse: collapse;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        background: white;
+    }
+
+    th, td {
+        padding: 15px 20px;
+        text-align: left;
+    }
+
+    th {
+        background: linear-gradient(45deg, #ff6a00, #ee0979);
+        color: white;
+        font-weight: 600;
+    }
+
+    tr:nth-child(even) {
+        background: #f7f7f7;
+    }
+
+    tr:hover {
+        background: #e0e0e0;
+        transition: all 0.2s ease;
+    }
+</style>
+
+<h2>Students</h2>
+<a class="add-btn" href="{{ url_for('routes.add_student') }}">Add Student</a>
+
+<table>
+    <tr>
+        <th>Name</th>
+        <th>Phone</th>
+        <th>Course</th>
+        <th>Monthly Fee</th>
+    </tr>
+    {% for s in students %}
+    <tr>
+        <td>{{ s.name }}</td>
+        <td>{{ s.phone }}</td>
+        <td>{{ s.course }}</td>
+        <td>{{ s.monthly_fee }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}
