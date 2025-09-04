@@ -2,117 +2,91 @@
 
 {% block content %}
 <style>
-    body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background: #f0f4f8;
-    }
+/* General page style */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f4f8;
+}
 
-    h1 {
-        font-weight: 700;
-        color: #333;
-    }
+/* Page heading */
+h1 {
+    color: #333;
+    font-weight: 700;
+}
 
-    .btn-primary {
-        background: linear-gradient(135deg, #6a11cb, #2575fc);
-        border: none;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
+/* Buttons */
+button.btn-primary {
+    background: linear-gradient(135deg, #6a11cb, #2575fc);
+    border: none;
+    transition: all 0.3s ease;
+}
 
-    .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    }
+button.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
 
-    .card {
-        border-radius: 15px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-        margin-bottom: 30px;
-    }
+/* Cards */
+.card {
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
 
-    .card-header h5 {
-        font-weight: 600;
-        color: #2575fc;
-    }
+/* Table */
+table.table {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    background: white;
+}
 
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
+table.table th {
+    background: linear-gradient(45deg, #ff6a00, #ee0979);
+    color: white;
+    font-weight: 600;
+}
 
-    th, td {
-        padding: 12px 15px;
-        text-align: left;
-    }
+table.table td, table.table th {
+    padding: 12px 15px;
+}
 
-    th {
-        background: linear-gradient(135deg, #ff6a00, #ee0979);
-        color: white;
-        font-weight: 600;
-    }
+table.table tr:nth-child(even) {
+    background: #f7f7f7;
+}
 
-    tr:nth-child(even) {
-        background: #f7f7f7;
-    }
+table.table tr:hover {
+    background: #e0e0e0;
+    transition: all 0.2s ease;
+}
 
-    tr:hover {
-        background: #e0e0e0;
-        transition: all 0.2s ease;
-    }
+/* Badges */
+.badge.bg-success {
+    background-color: #28a745 !important;
+    font-weight: 600;
+}
 
-    .badge-success {
-        background-color: #28a745 !important;
-        font-weight: 500;
-    }
+.badge.bg-danger {
+    background-color: #dc3545 !important;
+    font-weight: 600;
+}
 
-    .badge-danger {
-        background-color: #dc3545 !important;
-        font-weight: 500;
-    }
+/* Modal */
+.modal-content {
+    border-radius: 15px;
+}
 
-    .change-status {
-        border-radius: 8px;
-        padding: 5px 10px;
-        transition: all 0.3s ease;
-    }
+.modal-header {
+    border-bottom: none;
+    background: linear-gradient(135deg, #6a11cb, #2575fc);
+    color: white;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+}
 
-    .change-status:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-    }
-
-    .modal-content {
-        border-radius: 15px;
-        overflow: hidden;
-    }
-
-    .modal-header, .modal-footer {
-        border: none;
-    }
-
-    .form-label {
-        font-weight: 500;
-    }
-
-    .form-select, .form-control {
-        border-radius: 8px;
-        padding: 10px 12px;
-    }
-
-    .modal-footer .btn-primary {
-        background: linear-gradient(135deg, #ffb347, #ffcc33);
-        color: #333;
-        font-weight: 600;
-    }
-
-    .modal-footer .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    }
-
-    .modal-footer .btn-secondary {
-        border-radius: 8px;
-    }
+.modal-footer button.btn-primary {
+    background: linear-gradient(45deg, #ff6a00, #ee0979);
+}
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -165,11 +139,110 @@
         </div>
     </div>
 </div>
+
+<!-- Add Payment Modal -->
+<div class="modal fade" id="addPaymentModal" tabindex="-1" aria-labelledby="addPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addPaymentModalLabel">Add New Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('routes.add_payment') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="student_id" class="form-label">Student</label>
+                        <select class="form-select" id="student_id" name="student_id" required>
+                            <option value="" selected disabled>Select a student</option>
+                            {% for student in students %}
+                            <option value="{{ student.id }}">{{ student.name }} - {{ student.phone }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="month" class="form-label">Month</label>
+                                <select class="form-select" id="month" name="month" required>
+                                    <option value="" selected disabled>Select month</option>
+                                    <option value="January">January</option>
+                                    <option value="February">February</option>
+                                    <option value="March">March</option>
+                                    <option value="April">April</option>
+                                    <option value="May">May</option>
+                                    <option value="June">June</option>
+                                    <option value="July">July</option>
+                                    <option value="August">August</option>
+                                    <option value="September">September</option>
+                                    <option value="October">October</option>
+                                    <option value="November">November</option>
+                                    <option value="December">December</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="year" class="form-label">Year</label>
+                                <input type="number" class="form-control" id="year" name="year" 
+                                       min="2020" max="2030" value="{{ current_year }}" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount</label>
+                        <input type="number" class="form-control" id="amount" name="amount" 
+                               min="0" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select" id="status" name="status" required>
+                            <option value="paid" selected>Paid</option>
+                            <option value="unpaid">Unpaid</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Add Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Change Status Modal -->
+<div class="modal fade" id="changeStatusModal" tabindex="-1" aria-labelledby="changeStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="changeStatusModalLabel">Change Payment Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="changeStatusForm">
+                <div class="modal-body">
+                    <input type="hidden" id="payment_id" name="payment_id">
+                    <div class="mb-3">
+                        <label for="new_status" class="form-label">New Status</label>
+                        <select class="form-select" id="new_status" name="status" required>
+                            <option value="paid">Paid</option>
+                            <option value="unpaid">Unpaid</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Status</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Handle change status buttons
     const changeStatusButtons = document.querySelectorAll('.change-status');
     const changeStatusModal = new bootstrap.Modal(document.getElementById('changeStatusModal'));
     const changeStatusForm = document.getElementById('changeStatusForm');
@@ -188,8 +261,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // Handle form submission for status change
     changeStatusForm.addEventListener('submit', function(e) {
         e.preventDefault();
+        
         const formData = new FormData(this);
         const paymentId = formData.get('payment_id');
         
@@ -199,8 +274,11 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            if (data.success) location.reload();
-            else alert('Error updating payment status');
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error updating payment status');
+            }
         })
         .catch(error => {
             console.error('Error:', error);
@@ -208,10 +286,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // Initialize DataTable if available
     if (typeof $.fn.DataTable !== 'undefined') {
         $('#paymentsTable').DataTable({
             order: [[2, 'desc'], [1, 'asc']],
-            columnDefs: [{ orderable: false, targets: [5] }]
+            columnDefs: [
+                { orderable: false, targets: [5] }
+            ]
         });
     }
 });
