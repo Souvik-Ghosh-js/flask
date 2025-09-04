@@ -3,3 +3,4 @@ supabase
 twilio
 python-dotenv
 python-dateutil
+schedule
