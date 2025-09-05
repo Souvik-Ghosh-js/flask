@@ -123,6 +123,6 @@ def update_payment_status(payment_id):
 # ---------------- Reminders ----------------
 @routes_bp.route('/send_reminders')
 def send_reminders():
-    check_and_send_reminders(force=True)
+    check_and_send_reminders(force=False)
     flash('Reminders sent successfully!', 'success')
     return redirect(url_for('routes.dashboard'))
