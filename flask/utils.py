@@ -30,7 +30,7 @@ def send_whatsapp_reminder(phone_number, student_name, month):
         print(f"Error sending WhatsApp message: {e}")
         return None
 
-def check_and_send_reminders(force=False):
+def check_and_send_reminders(force=True):
     today = datetime.now()
     last_day = calendar.monthrange(today.year, today.month)[1]
     
