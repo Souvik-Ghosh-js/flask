@@ -20,281 +20,317 @@ button.btn-primary {
     border: none;
     transition: all 0.3s ease;
 }
-
 button.btn-primary:hover {
+    background: linear-gradient(135deg, #2575fc, #6a11cb);
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+/* Style for DataTables length dropdown */
+.dataTables_length label {
+    font-weight: 500;
+    color: #444;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
 }
 
-/* Cards */
-.card {
-    border-radius: 15px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-    margin-bottom: 30px;
+.dataTables_length select {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
 }
 
-/* Table */
-table.table {
-    border-radius: 10px;
+.dataTables_length select:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 4px rgba(0, 123, 255, 0.3);
+}
+
+/* Table styling */
+.table {
+    background: #fff;
+    border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
-
-table.table th {
-    background: linear-gradient(45deg, #ff6a00, #ee0979);
-    color: white;
+.table th {
+    background: #2575fc;
+    color: #fff;
     font-weight: 600;
+    text-align: center;
+}
+.table td {
+    vertical-align: middle;
+    text-align: center;
+    padding: 10px;
+}
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: #f9fbfd;
+}
+.table-hover tbody tr:hover {
+    background-color: #eef5ff;
 }
 
-table.table td, table.table th {
-    padding: 12px 15px;
+/* Scroll wrapper */
+.table-responsive {
+    max-height: 400px;   /* Adjust scroll height */
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+    margin-bottom: 20px;
 }
 
-table.table tr:nth-child(even) {
-    background: #f7f7f7;
+/* DataTables custom styling */
+.dataTables_wrapper .dataTables_length label {
+    font-weight: 600;
+    margin-right: 10px;
 }
-
-table.table tr:hover {
-    background: #e0e0e0;
+.dataTables_wrapper .dataTables_length select {
+    border-radius: 8px;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    margin: 0 5px;
+}
+.dataTables_wrapper .dataTables_filter input {
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    padding: 5px 10px;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    padding: 4px 10px;
+    margin: 2px;
+    background: #fff;
     transition: all 0.2s ease;
 }
-
-/* Badges */
-.badge.bg-success {
-    background-color: #28a745 !important;
-    font-weight: 600;
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+    background: #2575fc;
+    color: #fff !important;
+    border: 1px solid #2575fc;
 }
-
-.badge.bg-danger {
-    background-color: #dc3545 !important;
-    font-weight: 600;
-}
-
-/* Modal */
-.modal-content {
-    border-radius: 15px;
-}
-
-.modal-header {
-    border-bottom: none;
-    background: linear-gradient(135deg, #6a11cb, #2575fc);
-    color: white;
-    border-top-left-radius: 15px;
-    border-top-right-radius: 15px;
-}
-
-.modal-footer button.btn-primary {
-    background: linear-gradient(45deg, #ff6a00, #ee0979);
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+    background: #6a11cb;
+    color: #fff !important;
+    border: 1px solid #6a11cb;
 }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Payment Management</h1>
-    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPaymentModal">
-        Add New Payment
-    </button>
-</div>
+<div class="container mt-4">
+    <h1 class="mb-4">Payments</h1>
 
-<div class="card">
-    <div class="card-header">
-        <h5 class="mb-0">All Payments</h5>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-striped table-hover" id="paymentsTable">
-                <thead>
-                    <tr>
-                        <th>Student Name</th>
-                        <th>Month</th>
-                        <th>Year</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for payment in payments %}
-                    <tr>
-                        <td>{{ payment.students.name }}</td>
-                        <td>{{ payment.month }}</td>
-                        <td>{{ payment.year }}</td>
-                        <td>₹{{ payment.amount }}</td>
-                        <td>
-                            <span class="badge bg-{{ 'success' if payment.status == 'paid' else 'danger' }}">
-                                {{ payment.status|title }}
-                            </span>
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-primary change-status" 
-                                    data-payment-id="{{ payment.id }}"
-                                    data-current-status="{{ payment.status }}">
-                                Change Status
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- Add Payment Button -->
+    <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addPaymentModal">
+        Add Payment
+    </button>
+
+    <!-- Upload via Excel Button -->
+<button class="btn btn-success mb-3 ms-2" data-bs-toggle="modal" data-bs-target="#uploadExcelModal">
+    Upload via Excel
+</button>
+
+    <!-- Filters -->
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <select id="monthFilter" class="form-select">
+                <option value="">Filter by Month</option>
+                <option>January</option>
+                <option>February</option>
+                <option>March</option>
+                <option>April</option>
+                <option>May</option>
+                <option>June</option>
+                <option>July</option>
+                <option>August</option>
+                <option>September</option>
+                <option>October</option>
+                <option>November</option>
+                <option>December</option>
+            </select>
         </div>
     </div>
+
+    <!-- Payments Table -->
+    <div class="table-responsive">
+        <table id="paymentsTable" class="table table-bordered table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Month</th>
+                    <th>Year</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for payment in payments %}
+                <tr>
+                    <td>{{ payment.students.name }}</td>
+                    <td>{{ payment.month }}</td>
+                    <td>{{ payment.year }}</td>
+                    <td>
+                        <span class="badge bg-{{ 'success' if payment.status == 'paid' else 'danger' }}">
+                            {{ payment.status|title }}
+                        </span>
+                    </td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-primary"
+                                data-bs-toggle="modal" data-bs-target="#changeStatusModal{{ payment.id }}">
+                            Change Status
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+<div class="modal fade" id="uploadExcelModal" tabindex="-1" aria-labelledby="uploadExcelModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Upload Payments via Excel</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('routes.upload_payments_excel') }}" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="excel_file" class="form-label">Select Excel File</label>
+            <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+          </div>
+          <p>Excel format: <strong>Student Name | Month | Status</strong></p>
+          <p>Year will be auto-filled: Months before Jan → 2024, Jan and later → 2025</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Upload</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Add Payment Modal -->
 <div class="modal fade" id="addPaymentModal" tabindex="-1" aria-labelledby="addPaymentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addPaymentModalLabel">Add New Payment</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST" action="{{ url_for('routes.add_payment') }}">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="student_id" class="form-label">Student</label>
-                        <select class="form-select" id="student_id" name="student_id" required>
-                            <option value="" selected disabled>Select a student</option>
-                            {% for student in students %}
-                            <option value="{{ student.id }}">{{ student.name }} - {{ student.phone }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="month" class="form-label">Month</label>
-                                <select class="form-select" id="month" name="month" required>
-                                    <option value="" selected disabled>Select month</option>
-                                    <option value="January">January</option>
-                                    <option value="February">February</option>
-                                    <option value="March">March</option>
-                                    <option value="April">April</option>
-                                    <option value="May">May</option>
-                                    <option value="June">June</option>
-                                    <option value="July">July</option>
-                                    <option value="August">August</option>
-                                    <option value="September">September</option>
-                                    <option value="October">October</option>
-                                    <option value="November">November</option>
-                                    <option value="December">December</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="year" class="form-label">Year</label>
-                                <input type="number" class="form-control" id="year" name="year" 
-                                       min="2020" max="2030" value="{{ current_year }}" required>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="amount" class="form-label">Amount</label>
-                        <input type="number" class="form-control" id="amount" name="amount" 
-                               min="0" step="0.01" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="status" class="form-label">Status</label>
-                        <select class="form-select" id="status" name="status" required>
-                            <option value="paid" selected>Paid</option>
-                            <option value="unpaid">Unpaid</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">Add Payment</button>
-                </div>
-            </form>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Payment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('routes.add_payment') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="student_id" class="form-label">Student</label>
+            <select class="form-select" id="student_id" name="student_id" required>
+              {% for student in students %}
+              <option value="{{ student.id }}">{{ student.name }} ({{ student.phone }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="month" class="form-label">Month</label>
+            <select class="form-select" id="month" name="month" required>
+                <option value="">Select Month</option>
+                <option>January</option>
+                <option>February</option>
+                <option>March</option>
+                <option>April</option>
+                <option>May</option>
+                <option>June</option>
+                <option>July</option>
+                <option>August</option>
+                <option>September</option>
+                <option>October</option>
+                <option>November</option>
+                <option>December</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="year" class="form-label">Year</label>
+            <input type="number" class="form-control" id="year" name="year" required>
+          </div>
+          <div class="mb-3">
+            <label for="status" class="form-label">Status</label>
+            <select class="form-select" id="status" name="status" required>
+              <option value="paid">Paid</option>
+              <option value="unpaid">Unpaid</option>
+            </select>
+          </div>
         </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
     </div>
+  </div>
 </div>
 
-<!-- Change Status Modal -->
-<div class="modal fade" id="changeStatusModal" tabindex="-1" aria-labelledby="changeStatusModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="changeStatusModalLabel">Change Payment Status</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form id="changeStatusForm">
-                <div class="modal-body">
-                    <input type="hidden" id="payment_id" name="payment_id">
-                    <div class="mb-3">
-                        <label for="new_status" class="form-label">New Status</label>
-                        <select class="form-select" id="new_status" name="status" required>
-                            <option value="paid">Paid</option>
-                            <option value="unpaid">Unpaid</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Status</button>
-                </div>
-            </form>
+<!-- Change Status Modals -->
+{% for payment in payments %}
+<div class="modal fade" id="changeStatusModal{{ payment.id }}" tabindex="-1" aria-labelledby="changeStatusModalLabel{{ payment.id }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Change Status for {{ payment.students.name }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('routes.update_payment_status', payment_id=payment.id) }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="new_status{{ payment.id }}" class="form-label">Select New Status</label>
+            <select class="form-select" id="new_status{{ payment.id }}" name="status" required>
+              <option value="paid" {% if payment.status == 'paid' %}selected{% endif %}>Paid</option>
+              <option value="unpaid" {% if payment.status == 'unpaid' %}selected{% endif %}>Unpaid</option>
+            </select>
+          </div>
         </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Update Status</button>
+        </div>
+      </form>
     </div>
+  </div>
 </div>
-{% endblock %}
+{% endfor %}
 
-{% block scripts %}
+<!-- DataTables Scripts -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
+
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Handle change status buttons
-    const changeStatusButtons = document.querySelectorAll('.change-status');
-    const changeStatusModal = new bootstrap.Modal(document.getElementById('changeStatusModal'));
-    const changeStatusForm = document.getElementById('changeStatusForm');
-    const paymentIdInput = document.getElementById('payment_id');
-    const newStatusSelect = document.getElementById('new_status');
-    
-    changeStatusButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const paymentId = this.getAttribute('data-payment-id');
-            const currentStatus = this.getAttribute('data-current-status');
-            
-            paymentIdInput.value = paymentId;
-            newStatusSelect.value = currentStatus;
-            
-            changeStatusModal.show();
-        });
+$(document).ready(function () {
+    var table = $('#paymentsTable').DataTable({
+        pageLength: 5,
+        lengthMenu: [5, 10, 25, 50],
+        ordering: true,
+        searching: true,
+        scrollY: "300px",
+        scrollCollapse: true,
+        language: {
+            search: "Search:"
+        }
     });
-    
-    // Handle form submission for status change
-    changeStatusForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        const paymentId = formData.get('payment_id');
-        
-        fetch(`/update_payment_status/${paymentId}`, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error updating payment status');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error updating payment status');
-        });
+
+    // Month filter dropdown
+    $('#monthFilter').on('change', function () {
+        var month = $(this).val();
+        if (month) {
+            table.column(1).search('^' + month + '$', true, false).draw();
+        } else {
+            table.column(1).search('').draw();
+        }
     });
-    
-    // Initialize DataTable if available
-    if (typeof $.fn.DataTable !== 'undefined') {
-        $('#paymentsTable').DataTable({
-            order: [[2, 'desc'], [1, 'asc']],
-            columnDefs: [
-                { orderable: false, targets: [5] }
-            ]
-        });
-    }
 });
 </script>
 {% endblock %}

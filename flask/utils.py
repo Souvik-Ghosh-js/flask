@@ -3,7 +3,7 @@ from config import Config
 from datetime import datetime, timedelta
 from models import Payment
 import calendar
-
+import json
 twilio_client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 
 def send_voice_reminder(phone_number, student_name, month):
@@ -21,14 +21,19 @@ def send_voice_reminder(phone_number, student_name, month):
 def send_whatsapp_reminder(phone_number, student_name, month):
     try:
         message = twilio_client.messages.create(
-            body=f"Hello {student_name}, this is a reminder from your coaching center. Your payment for {month} is pending. Please make the payment at your earliest convenience. Thank you.",
-            from_=f'whatsapp:{Config.TWILIO_WHATSAPP_NUMBER}',
-            to=f'whatsapp:{"+91" + phone_number}'
+            from_=f"whatsapp:{Config.TWILIO_WHATSAPP_NUMBER}",  # Your registered sender
+            to=f"whatsapp:+91{phone_number}",                  # Recipient number
+            content_sid="HXaf9fb3b04d620f2c20ddda0fe602c57a",  # Your approved template SID
+            content_variables=json.dumps({
+                "1": student_name,   # placeholder 1
+                "2": month        # placeholder      # placeholder 3
+            })
         )
         return message.sid
     except Exception as e:
         print(f"Error sending WhatsApp message: {e}")
         return None
+
 
 def check_and_send_reminders(force=False):
     today = datetime.now()
@@ -50,14 +55,14 @@ def check_and_send_reminders(force=False):
                 month
             )
             
-            # whatsapp_sid = send_whatsapp_reminder(
-            #     student['students']['phone'], 
-            #     student['students']['name'], 
-            #     month
-            # )
+            whatsapp_sid = send_whatsapp_reminder(
+                student['students']['phone'], 
+                student['students']['name'], 
+                month
+            )
             
             # Log the reminders (you might want to store this in your database)
-            print(f"Sent reminders to {student['students']['name']}: Voice SID - {voice_sid}")
+            print(f"Sent reminders to {student['students']['name']}: Voice SID - {whatsapp_sid}")
 
     today = datetime.now()
     last_day = calendar.monthrange(today.year, today.month)[1]

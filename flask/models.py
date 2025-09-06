@@ -9,18 +9,20 @@ class Student:
     def get_all():
         response = supabase.table('students').select('*').execute()
         return response.data
-    
+    @staticmethod
+    def get_by_name(name):
+        response = supabase.table('students').select('*').eq('name', name).execute()
+        return response.data[0] if response.data else None
     @staticmethod
     def get_by_id(student_id):
         response = supabase.table('students').select('*').eq('id', student_id).execute()
         return response.data[0] if response.data else None
     
     @staticmethod
-    def create(name, phone, email):
+    def create(name, phone):
         response = supabase.table('students').insert({
             'name': name,
             'phone': phone,
-            'email': email
         }).execute()
         return response.data[0] if response.data else None
     
@@ -46,21 +48,29 @@ class Payment:
             .select("*, students(name)")
             .execute()
         )
+        print("length of payments:", len(response.data))
         return response.data
 
-    
+    @staticmethod
+    def get_by_student_month_year(student_id, month, year):
+        response = supabase.table('payments') \
+            .select('*') \
+            .eq('student_id', student_id) \
+            .eq('month', month) \
+            .eq('year', year) \
+            .execute()
+        return response.data[0] if response.data else None
     @staticmethod
     def get_by_student(student_id):
         response = supabase.table('payments').select('*').eq('student_id', student_id).execute()
         return response.data
     
     @staticmethod
-    def create(student_id, month, year, amount, status='paid'):
+    def create(student_id, month, year, status='paid'):
         response = supabase.table('payments').insert({
             'student_id': student_id,
             'month': month,
             'year': year,
-            'amount': amount,
             'status': status
         }).execute()
         return response.data[0] if response.data else None

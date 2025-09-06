@@ -14,7 +14,7 @@ app.register_blueprint(routes_bp)
 
 # Background scheduler for automated reminders
 def run_scheduler():
-    schedule.every().day.at("23:59").do(check_and_send_reminders)  # Run at end of day
+    schedule.every().day.at("18:59").do(check_and_send_reminders)  # Run at end of day
     
     while True:
         schedule.run_pending()
