@@ -45,6 +45,70 @@ button.btn-primary:hover {
     transition: all 0.2s ease-in-out;
 }
 
+.student-search-container {
+    position: relative;
+}
+
+.student-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+}
+
+.student-search-input:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 4px rgba(0, 123, 255, 0.3);
+}
+
+.student-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.student-dropdown-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s ease;
+}
+
+.student-dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+.student-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.student-dropdown-item.selected {
+    background-color: #e3f2fd;
+}
+
+.student-name {
+    font-weight: 500;
+    color: #333;
+}
+
+.student-phone {
+    font-size: 12px;
+    color: #666;
+    margin-left: 5px;
+}
+
 .dataTables_length select:focus {
     border-color: #007bff;
     outline: none;
@@ -194,6 +258,7 @@ button.btn-primary:hover {
 </div>
 
 <!-- Add Payment Modal -->
+<!-- Add Payment Modal -->
 <div class="modal fade" id="addPaymentModal" tabindex="-1" aria-labelledby="addPaymentModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -204,13 +269,20 @@ button.btn-primary:hover {
       <form method="POST" action="{{ url_for('routes.add_payment') }}">
         <div class="modal-body">
           <div class="mb-3">
-            <label for="student_id" class="form-label">Student</label>
-            <select class="form-select student-search" id="student_id" name="student_id" required>
-              {% for student in students %}
-              <option value="{{ student.id }}">{{ student.name }} ({{ student.phone }})</option>
-              {% endfor %}
-            </select>
+            <label for="student_search" class="form-label">Student</label>
+            <div class="student-search-container">
+              <input type="text" 
+                     class="form-control student-search-input" 
+                     id="student_search" 
+                     placeholder="Search by name or phone number..."
+                     autocomplete="off">
+              <div class="student-dropdown" id="studentDropdown">
+                <!-- Dropdown items will be populated by JavaScript -->
+              </div>
+              <input type="hidden" id="student_id" name="student_id" required>
+            </div>
           </div>
+          <!-- Rest of the form remains the same -->
           <div class="mb-3">
             <label for="month" class="form-label">Month</label>
             <select class="form-select" id="month" name="month" required>
@@ -257,8 +329,15 @@ button.btn-primary:hover {
 <script src="https://cdn.datatables.net/1.13.5/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
+<script type="application/json" id="students-data">
+{{ students|tojson }}
+</script>
+
 <script>
 $(document).ready(function () {
+    // Get students data from JSON script tag
+    var studentsData = JSON.parse(document.getElementById('students-data').textContent);
+
     var table = $('#paymentsTable').DataTable({
         pageLength: 5,
         lengthMenu: [5, 10, 25, 50],
@@ -275,18 +354,116 @@ $(document).ready(function () {
     $('#monthFilter').on('change', function () {
         var month = $(this).val();
         if (month) {
-            table.column(2).search('^' + month + '$', true, false).draw(); // Month column shifted by +1
+            table.column(2).search('^' + month + '$', true, false).draw();
         } else {
             table.column(2).search('').draw();
         }
     });
 
-    // Student search dropdown (name or phone)
-    $('.student-search').select2({
-        placeholder: "Search student by name or phone",
-        allowClear: true,
-        width: '100%'
+    // Student search functionality
+    var $searchInput = $('#student_search');
+    var $dropdown = $('#studentDropdown');
+    var $hiddenInput = $('#student_id');
+    var selectedIndex = -1;
+
+    // Function to filter and display students
+    function filterStudents(query) {
+        if (!query) {
+            $dropdown.hide();
+            return;
+        }
+
+        var filtered = studentsData.filter(function(student) {
+            return student.name.toLowerCase().indexOf(query.toLowerCase()) !== -1 ||
+                   student.phone.indexOf(query) !== -1;
+        });
+
+        if (filtered.length > 0) {
+            var html = '';
+            for (var i = 0; i < filtered.length; i++) {
+                var student = filtered[i];
+                html += '<div class="student-dropdown-item" data-id="' + student.id + '" data-index="' + i + '">';
+                html += '<span class="student-name">' + escapeHtml(student.name) + '</span>';
+                html += '<span class="student-phone">(' + escapeHtml(student.phone) + ')</span>';
+                html += '</div>';
+            }
+            $dropdown.html(html).show();
+            selectedIndex = -1;
+        } else {
+            $dropdown.hide();
+        }
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Handle input typing
+    $searchInput.on('input', function() {
+        var query = $(this).val().trim();
+        filterStudents(query);
+        $hiddenInput.val(''); // Clear hidden input when typing
+    });
+
+    // Handle dropdown item click
+    $(document).on('click', '.student-dropdown-item', function() {
+        var studentId = $(this).data('id');
+        var studentName = $(this).find('.student-name').text();
+        var studentPhone = $(this).find('.student-phone').text();
+        
+        $searchInput.val(studentName + ' ' + studentPhone);
+        $hiddenInput.val(studentId);
+        $dropdown.hide();
+    });
+
+    // Handle keyboard navigation
+    $searchInput.on('keydown', function(e) {
+        var $items = $dropdown.find('.student-dropdown-item');
+        
+        if (e.keyCode === 40) { // ArrowDown
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, $items.length - 1);
+            updateSelection($items);
+        } else if (e.keyCode === 38) { // ArrowUp
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, -1);
+            updateSelection($items);
+        } else if (e.keyCode === 13) { // Enter
+            e.preventDefault();
+            if (selectedIndex >= 0) {
+                $items.eq(selectedIndex).click();
+            }
+        } else if (e.keyCode === 27) { // Escape
+            $dropdown.hide();
+            selectedIndex = -1;
+        }
+    });
+
+    function updateSelection($items) {
+        $items.removeClass('selected');
+        if (selectedIndex >= 0) {
+            $items.eq(selectedIndex).addClass('selected');
+        }
+    }
+
+    // Hide dropdown when clicking outside
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.student-search-container').length) {
+            $dropdown.hide();
+            selectedIndex = -1;
+        }
+    });
+
+    // Clear search when modal is closed
+    $('#addPaymentModal').on('hidden.bs.modal', function() {
+        $searchInput.val('');
+        $hiddenInput.val('');
+        $dropdown.hide();
     });
 });
 </script>
+
 {% endblock %}
