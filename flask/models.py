@@ -43,13 +43,35 @@ class Student:
 class Payment:
     @staticmethod
     def get_all():
-        response = (
-            supabase.table("payments")
-            .select("*, students(name)")
-            .execute()
-        )
-        print("length of payments:", len(response.data))
-        return response.data
+        all_data = []
+        last_id = 0
+        chunk_size = 1000
+
+        while True:
+            response = (
+                supabase.table("payments")
+                .select("*, students(name)")
+                .gt("id", last_id)   # fetch rows with id greater than last_id
+                .order("id")
+                .limit(chunk_size)
+                .execute()
+            )
+
+            data = response.data or []
+            if not data:
+                break
+
+            all_data.extend(data)
+            last_id = data[-1]["id"]  # update checkpoint
+
+            print(f"Fetched {len(data)} records (total so far: {len(all_data)})")
+
+            if len(data) < chunk_size:
+                break
+
+        print("Final length of payments:", len(all_data))
+        return all_data
+
 
     @staticmethod
     def get_by_student_month_year(student_id, month, year):

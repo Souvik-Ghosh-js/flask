@@ -8,8 +8,10 @@ twilio_client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 
 def send_voice_reminder(phone_number, student_name, month):
     try:
+        audio_url = "https://fgksbxrxskwchjyqxpvx.supabase.co/storage/v1/object/public/mp3/whatsapp-audio-2025-09-07-at-115356-pm_6RDISKZK.mp3"
+
         call = twilio_client.calls.create(
-            twiml=f'<Response><Say>Hello {student_name}, this is a reminder from your coaching center. Your payment for {month} is pending. Please make the payment at your earliest convenience. Thank you.</Say></Response>',
+            twiml=f'<Response><Play>{audio_url}</Play></Response>',
             to="+91" + phone_number,
             from_=Config.TWILIO_PHONE_NUMBER
         )
@@ -38,7 +40,7 @@ def send_whatsapp_reminder(phone_number, student_name, month):
 def check_and_send_reminders(force=False):
     today = datetime.now()
     last_day = calendar.monthrange(today.year, today.month)[1]
-    
+    print(f"Today's date: {today}, Last day of month: {last_day}, Force: {force}")
     # Run only on last day OR if force=True
     if today.day == last_day or force:
         month = today.strftime('%B')
@@ -49,17 +51,17 @@ def check_and_send_reminders(force=False):
         
         for student in unpaid_students:
             # Send voice call
-            voice_sid = send_voice_reminder(
-                student['students']['phone'], 
-                student['students']['name'], 
-                month
-            )
+            # voice_sid = send_voice_reminder(
+            #     student['students']['phone'], 
+            #     student['students']['name'], 
+            #     month
+            # )
             
-            whatsapp_sid = send_whatsapp_reminder(
-                student['students']['phone'], 
-                student['students']['name'], 
-                month
-            )
+            # whatsapp_sid = send_whatsapp_reminder(
+            #     student['students']['phone'], 
+            #     student['students']['name'], 
+            #     month
+            # )
             
             # Log the reminders (you might want to store this in your database)
             print(f"Sent reminders to {student['students']['name']}: Voice SID - {whatsapp_sid}")
