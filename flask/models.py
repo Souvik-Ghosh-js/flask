@@ -50,12 +50,13 @@ class Payment:
         while True:
             response = (
                 supabase.table("payments")
-                .select("*, students(name)")
-                .gt("id", last_id)   # fetch rows with id greater than last_id
+                .select("*, students(name, phone)")   # include phone here
+                .gt("id", last_id)
                 .order("id")
                 .limit(chunk_size)
                 .execute()
             )
+
 
             data = response.data or []
             if not data:
