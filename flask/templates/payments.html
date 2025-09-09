@@ -322,6 +322,36 @@ button.btn-primary:hover {
   </div>
 </div>
 
+
+{% for payment in payments %}
+<div class="modal fade" id="changeStatusModal{{ payment.id }}" tabindex="-1" aria-labelledby="changeStatusModalLabel{{ payment.id }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Change Status for {{ payment.students.name }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('routes.update_payment_status', payment_id=payment.id) }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="new_status{{ payment.id }}" class="form-label">Select New Status</label>
+            <select class="form-select" id="new_status{{ payment.id }}" name="status" required>
+              <option value="paid" {% if payment.status == 'paid' %}selected{% endif %}>Paid</option>
+              <option value="unpaid" {% if payment.status == 'unpaid' %}selected{% endif %}>Unpaid</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Update Status</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+
 <!-- Scripts -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
