@@ -109,3 +109,35 @@ class Payment:
     def get_unpaid_students(month, year):
         response = supabase.table('payments').select('*, students(name, phone, email)').eq('month', month).eq('year', year).eq('status', 'unpaid').execute()
         return response.data
+    
+
+    @staticmethod
+    def get_all_unpaid_students():
+        # Fetch all unpaid payments along with student info
+        response = supabase.table('payments')\
+            .select('id, month, year, student_id, status, students(id, name, phone, email)')\
+            .eq('status', 'unpaid')\
+            .execute()
+        
+        data = response.data or []
+
+        # Aggregate dues by student
+        students_dict = {}
+        for payment in data:
+            student = payment.get('students')
+            if not student:
+                continue  # skip if student info missing
+
+            student_id = student['id']
+            if student_id not in students_dict:
+                students_dict[student_id] = {
+                    'students': student,
+                    'dues': []
+                }
+            students_dict[student_id]['dues'].append({
+                'month': payment['month'],
+                'year': payment['year']
+            })
+        
+        # Return as a list
+        return list(students_dict.values())
