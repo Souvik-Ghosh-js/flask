@@ -4,11 +4,37 @@
 <!-- Modern Dashboard Title -->
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="dashboard-title">📊 Dashboard</h1>
-    <a href="{{ url_for('routes.send_reminders') }}" class="btn btn-gradient-warning btn-lg shadow-sm">
+    <a href="#" class="btn btn-gradient-warning btn-lg shadow-sm" data-bs-toggle="modal"
+        data-bs-target="#reminderModal">
         🔔 Send Reminders Now
     </a>
 </div>
 
+
+<div class="modal fade" id="reminderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('routes.send_reminders') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Send WhatsApp Reminder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Message Template</label>
+                        <textarea name="message" id="message" rows="4" class="form-control" placeholder="Hi {name}, this is Jibak from SD Sir's Classes. This is a reminder that your tuition fees is due for the month of {month}. Note: "></textarea>
+                        <small class="text-muted">
+                            The <code>note</code> will be inserted <code>after</code> the above message.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-gradient-warning">Send Now</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 <!-- Stats Cards -->
 <div class="row mb-4 g-4">
     <div class="col-md-4">
@@ -53,10 +79,10 @@
             </li>
         </ul>
         <div class="d-flex gap-2">
-            <a href="{{ url_for('routes.export_csv', table='students') }}" 
-               class="btn btn-gradient-primary btn-sm">Export Students</a>
-            <a href="{{ url_for('routes.export_csv', table='payments') }}" 
-               class="btn btn-gradient-primary btn-sm">Export Payments</a>
+            <a href="{{ url_for('routes.export_csv', table='students') }}"
+                class="btn btn-gradient-primary btn-sm">Export Students</a>
+            <a href="{{ url_for('routes.export_csv', table='payments') }}"
+                class="btn btn-gradient-primary btn-sm">Export Payments</a>
         </div>
     </div>
     <div class="card-body">
@@ -127,107 +153,142 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
 
 <script>
-$(document).ready(function () {
-    function initTable(id, title) {
-        let table = $(id).DataTable({
-            paging: true,
-            searching: true,
-            ordering: true,
-            pageLength: 10,
-            dom: 'Bfrtip',
-            buttons: [{
-                extend: 'csvHtml5',
-                text: 'Export CSV',
-                className: 'btn btn-gradient-primary btn-sm float-end',
-                title: title,
-                exportOptions: { columns: ':visible' }
-            }]
-        });
-        table.buttons().container().prependTo(id + '_wrapper');
-    }
-    initTable('#studentsTable', 'Students');
-    initTable('#paymentsTable', 'Payments');
-});
+    $(document).ready(function () {
+        function initTable(id, title) {
+            let table = $(id).DataTable({
+                paging: true,
+                searching: true,
+                ordering: true,
+                pageLength: 10,
+                dom: 'Bfrtip',
+                buttons: [{
+                    extend: 'csvHtml5',
+                    text: 'Export CSV',
+                    className: 'btn btn-gradient-primary btn-sm float-end',
+                    title: title,
+                    exportOptions: { columns: ':visible' }
+                }]
+            });
+            table.buttons().container().prependTo(id + '_wrapper');
+        }
+        initTable('#studentsTable', 'Students');
+        initTable('#paymentsTable', 'Payments');
+    });
 </script>
 
 <style>
-/* Dashboard Title */
+    /* Dashboard Title */
 
 
 
-.dashboard-title {
-    font-size: 2.5rem;
-    font-weight: 700;
-    background: linear-gradient(90deg, #4e54c8, #8f94fb);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-}
+    .dashboard-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #4e54c8, #8f94fb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+    }
 
-/* Gradient Cards */
-.gradient-primary { background: linear-gradient(135deg, #4e54c8, #8f94fb); }
-.gradient-success { background: linear-gradient(135deg, #28a745, #7de79d); }
-.gradient-danger  { background: linear-gradient(135deg, #dc3545, #ff7b7b); }
+    /* Gradient Cards */
+    .gradient-primary {
+        background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    }
 
-/* Card Hover */
-.card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-.card:hover { transform: translateY(-5px); box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+    .gradient-success {
+        background: linear-gradient(135deg, #28a745, #7de79d);
+    }
 
-/* Buttons Gradient */
-.btn-gradient-primary { 
-    background: linear-gradient(90deg, #4e54c8, #8f94fb); 
-    color: #fff; border: none;
-}
-.btn-gradient-primary:hover {
-    background: linear-gradient(90deg, #8f94fb, #4e54c8);
-}
-.btn-gradient-warning { 
-    background: linear-gradient(90deg, #ffc107, #ffca2c); 
-    color: #212529; border: none;
-}
-.btn-gradient-warning:hover { background: linear-gradient(90deg, #ffca2c, #ffc107); }
+    .gradient-danger {
+        background: linear-gradient(135deg, #dc3545, #ff7b7b);
+    }
 
-/* Table Modern */
-.modern-table thead {
-    background: linear-gradient(90deg, #4e54c8, #8f94fb);
-    color: white;
-    font-weight: 600;
-}
-.modern-table tbody tr:nth-of-type(odd) { background-color: #f8f9fa; }
-.modern-table tbody tr:hover { background-color: #e3f2fd; }
+    /* Card Hover */
+    .card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
 
-/* Status Badges */
-.status-badge {
-    font-weight: 500;
-    padding: 0.5em 0.8em;
-    box-shadow: 1px 1px 3px rgba(0,0,0,0.1);
-}
-.nav-tabs .nav-link {
-    color: #333;              /* Dark text for better readability */
-    font-weight: 600;         /* Bold */
-    background: linear-gradient(90deg, #a6a8c6, #8f94fb); /* Light background */
-    border: none;
-    border-radius: 0.5rem 0.5rem 0 0;
-    transition: all 0.3s ease;
-}
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    }
 
-.nav-tabs .nav-link:hover {
-    color: #4e54c8;           /* Gradient color for hover */
-    background-color: #e9ecef;
-}
+    /* Buttons Gradient */
+    .btn-gradient-primary {
+        background: linear-gradient(90deg, #4e54c8, #8f94fb);
+        color: #fff;
+        border: none;
+    }
 
-.nav-tabs .nav-link.active {
-    color: #ffc107;            /* Bright yellow for active */
-    background: linear-gradient(90deg, #4e54c8, #8f94fb);
-    border-color: transparent;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-.nav-tabs .nav-link.inactive {
-    color: #e3b21e;            /* Bright yellow for active */
-    background: linear-gradient(90deg, #4e54c8, #8f94fb);
-    border-color: transparent;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
+    .btn-gradient-primary:hover {
+        background: linear-gradient(90deg, #8f94fb, #4e54c8);
+    }
+
+    .btn-gradient-warning {
+        background: linear-gradient(90deg, #ffc107, #ffca2c);
+        color: #212529;
+        border: none;
+    }
+
+    .btn-gradient-warning:hover {
+        background: linear-gradient(90deg, #ffca2c, #ffc107);
+    }
+
+    /* Table Modern */
+    .modern-table thead {
+        background: linear-gradient(90deg, #4e54c8, #8f94fb);
+        color: white;
+        font-weight: 600;
+    }
+
+    .modern-table tbody tr:nth-of-type(odd) {
+        background-color: #f8f9fa;
+    }
+
+    .modern-table tbody tr:hover {
+        background-color: #e3f2fd;
+    }
+
+    /* Status Badges */
+    .status-badge {
+        font-weight: 500;
+        padding: 0.5em 0.8em;
+        box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .nav-tabs .nav-link {
+        color: #333;
+        /* Dark text for better readability */
+        font-weight: 600;
+        /* Bold */
+        background: linear-gradient(90deg, #a6a8c6, #8f94fb);
+        /* Light background */
+        border: none;
+        border-radius: 0.5rem 0.5rem 0 0;
+        transition: all 0.3s ease;
+    }
+
+    .nav-tabs .nav-link:hover {
+        color: #4e54c8;
+        /* Gradient color for hover */
+        background-color: #e9ecef;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #ffc107;
+        /* Bright yellow for active */
+        background: linear-gradient(90deg, #4e54c8, #8f94fb);
+        border-color: transparent;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .nav-tabs .nav-link.inactive {
+        color: #e3b21e;
+        /* Bright yellow for active */
+        background: linear-gradient(90deg, #4e54c8, #8f94fb);
+        border-color: transparent;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
 </style>
 
 {% endblock %}

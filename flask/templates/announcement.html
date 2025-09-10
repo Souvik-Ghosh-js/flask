@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Announcements</h2>
+
+    <!-- Upload Excel Button -->
+    <div class="mb-3">
+        <input type="file" id="excelFile" accept=".xlsx,.xls" class="form-control">
+    </div>
+
+    <!-- Table -->
+    <table id="announcementTable" class="table table-bordered table-striped mt-3">
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="selectAll"></th>
+                <th>Phone Number</th>
+                <th>Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data will be populated via JS -->
+        </tbody>
+    </table>
+
+    <!-- Send Announcement Button -->
+    <button class="btn btn-custom mt-3" id="sendAnnouncement">Send Announcement</button>
+</div>
+
+<!-- Modal for Message -->
+<div class="modal fade" id="messageModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Send Announcement</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <textarea id="announcementMessage" class="form-control" rows="4" placeholder="Enter your message..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-custom" id="confirmSend">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SheetJS for Excel parsing -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script>
+    let excelData = [];
+
+    // Read Excel
+    document.getElementById("excelFile").addEventListener("change", function(e) {
+        let file = e.target.files[0];
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            let data = new Uint8Array(e.target.result);
+            let workbook = XLSX.read(data, {type: 'array'});
+            let sheet = workbook.Sheets[workbook.SheetNames[0]];
+            excelData = XLSX.utils.sheet_to_json(sheet, {header:1});
+            
+            let tbody = document.querySelector("#announcementTable tbody");
+            tbody.innerHTML = "";
+            excelData.slice(1).forEach(row => {
+                if(row[0] && row[1]) {
+                    let tr = `
+                        <tr>
+                            <td><input type="checkbox" class="row-check" checked></td>
+                            <td>${row[0]}</td>
+                            <td>${row[1]}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += tr;
+                }
+            });
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    // Select All Checkbox
+    document.getElementById("selectAll").addEventListener("change", function() {
+        let checked = this.checked;
+        document.querySelectorAll(".row-check").forEach(cb => cb.checked = checked);
+    });
+
+    // Send Button → Open Modal
+    document.getElementById("sendAnnouncement").addEventListener("click", function() {
+        let selected = getSelectedRows();
+        if(selected.length === 0) {
+            alert("Please select at least one student.");
+            return;
+        }
+        let modal = new bootstrap.Modal(document.getElementById("messageModal"));
+        modal.show();
+    });
+
+    // Confirm Send → Call Backend
+    document.getElementById("confirmSend").addEventListener("click", function() {
+        let selected = getSelectedRows();
+        let message = document.getElementById("announcementMessage").value.trim();
+        if(message === "") {
+            alert("Message cannot be empty.");
+            return;
+        }
+        fetch("{{ url_for('routes.send_announcement') }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({data: selected, message: message})
+        }).then(res => res.json())
+          .then(resp => {
+              alert("Messages sent successfully!");
+              location.reload();
+          }).catch(err => alert("Error sending messages: " + err));
+    });
+
+    // Helper: Get Selected Rows
+    function getSelectedRows() {
+        let rows = [];
+        document.querySelectorAll("#announcementTable tbody tr").forEach((tr, i) => {
+            let cb = tr.querySelector(".row-check");
+            if(cb.checked) {
+                let phone = tr.cells[1].innerText;
+                let name = tr.cells[2].innerText;
+                rows.push({phone: phone, name: name});
+            }
+        });
+        return rows;
+    }
+</script>
+{% endblock %}

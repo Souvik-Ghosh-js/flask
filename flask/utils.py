@@ -20,15 +20,16 @@ def send_voice_reminder(phone_number, student_name, month):
         print(f"Error sending voice call: {e}")
         return None
 
-def send_whatsapp_reminder(phone_number, student_name, month):
+def send_whatsapp_reminder(phone_number, student_name, month, custom_message=None):
     try:
         message = twilio_client.messages.create(
             from_=f"whatsapp:{Config.TWILIO_WHATSAPP_NUMBER}",  # Your registered sender
             to=f"whatsapp:+91{phone_number}",                  # Recipient number
-            content_sid="HXaf9fb3b04d620f2c20ddda0fe602c57a",  # Your approved template SID
+            content_sid="HX143094063df9d0f0636b04e401b0d5df",  # Your approved template SID
             content_variables=json.dumps({
                 "1": student_name,   # placeholder 1
-                "2": month        # placeholder      # placeholder 3
+                "2": month,          # placeholder 2
+                "3": custom_message if custom_message else "Thank You!"  # placeholder 3
             })
         )
         return message.sid
@@ -36,28 +37,42 @@ def send_whatsapp_reminder(phone_number, student_name, month):
         print(f"Error sending WhatsApp message: {e}")
         return None
 
-def check_and_send_reminders(force=False):
+def check_and_send_reminders(force=False, user_message=None):
     today = datetime.now()
     last_day = calendar.monthrange(today.year, today.month)[1]
-    print(f"Today's date: {today}, Last day of month: {last_day}, Force: {force}")
-    
-    # Run only on last day OR if force=True
+
     if today.day == last_day or force:
-        # Get all students with any unpaid dues
-        all_unpaid = Payment.get_all_unpaid_students()  # You need to implement this
-        print(f"Students with any dues: {all_unpaid}")
+        all_unpaid = Payment.get_all_unpaid_students()
 
         for student in all_unpaid:
             student_name = student['students']['name']
             phone = student['students']['phone']
-            
-            # Collect all months with dues
             due_months = [f"{due['month']} {due['year']}" for due in student['dues']]
             due_text = ', '.join(due_months)
-            
-            # Send only **one** voice call and **one** WhatsApp message
-            voice_sid = send_voice_reminder(phone, student_name, due_text)
-            whatsapp_sid = send_whatsapp_reminder(phone, student_name, due_text)
-            
-            # Log the reminders (store in DB if needed)
-            print(f"Sent reminders to {student_name}: Voice SID - {voice_sid}, WhatsApp SID - {whatsapp_sid}")
+
+            # Send reminders
+            # voice_sid = send_voice_reminder(phone, student_name, due_text)
+            whatsapp_sid = send_whatsapp_reminder(phone, student_name, due_text ,custom_message=user_message) 
+
+            print(f"Sent reminders to {student_name}: Voice SID , WhatsApp SID - {whatsapp_sid}")
+
+def send_whatsapp_announcement(phone_number, custom_message):
+    """
+    Send a WhatsApp announcement message using Twilio.
+    phone_number: str (without +91)
+    student_name: str
+    custom_message: str (user typed message from Announcement page)
+    """
+    try:
+        message = twilio_client.messages.create(
+            from_=f"whatsapp:{Config.TWILIO_WHATSAPP_NUMBER}",
+            to=f"whatsapp:+91{phone_number}",
+            content_sid="HX1a6e4a6d1e6d6667a7c94a615a7c9429",  # <-- create new approved template for announcements
+            content_variables=json.dumps({
+                "1": custom_message
+            })
+        )
+        return message.sid
+    except Exception as e:
+        print(f"Error sending WhatsApp announcement: {e}")
+        return None

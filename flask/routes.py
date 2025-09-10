@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from models import Student, Payment
-from utils import check_and_send_reminders
+from utils import check_and_send_reminders , send_whatsapp_announcement
 from datetime import datetime
 from flask import Response
 import csv
@@ -236,8 +236,33 @@ def update_payment_status(payment_id):
     return redirect(url_for('routes.payments'))
 
 # ---------------- Reminders ----------------
-@routes_bp.route('/send_reminders')
+@routes_bp.route('/send_reminders', methods=['GET', 'POST'])
 def send_reminders():
-    check_and_send_reminders(force=True)
-    flash('Reminders sent successfully!', 'success')
+    if request.method == 'POST':
+        user_message = request.form.get("message", "")
+        check_and_send_reminders(force=True, user_message=user_message)
+        flash('Reminders sent successfully!', 'success')
+        return redirect(url_for('routes.dashboard'))
     return redirect(url_for('routes.dashboard'))
+
+@routes_bp.route("/announcement", methods=["GET"])
+def announcement():
+    return render_template("announcement.html")
+
+@routes_bp.route("/send_announcement", methods=["POST"])
+def send_announcement():
+    data = request.json
+    students = data.get("data", [])
+    message = data.get("message", "")
+    
+    results = []
+    for student in students:
+        phone = student.get("phone")
+        try:
+            sid = send_whatsapp_announcement(phone,  message)
+            results.append({"phone": phone, "status": "sent", "sid": sid})
+        except Exception as e:
+            results.append({"phone": phone, "status": f"failed: {e}"})
+    print(results)
+    flash('Announcements sent successfully!', 'success')
+    return jsonify({"success": True, "results": results})
