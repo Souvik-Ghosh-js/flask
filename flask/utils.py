@@ -51,10 +51,10 @@ def check_and_send_reminders(force=False, user_message=None):
             due_text = ', '.join(due_months)
 
             # Send reminders
-            # voice_sid = send_voice_reminder(phone, student_name, due_text)
+            voice_sid = send_voice_reminder(phone, student_name, due_text)
             whatsapp_sid = send_whatsapp_reminder(phone, student_name, due_text ,custom_message=user_message) 
 
-            print(f"Sent reminders to {student_name}: Voice SID , WhatsApp SID - {whatsapp_sid}")
+            print(f"Sent reminders to {student_name}: Voice SID - {voice_sid}, WhatsApp SID - {whatsapp_sid}")
 
 def send_whatsapp_announcement(phone_number, custom_message):
     """
