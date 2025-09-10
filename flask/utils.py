@@ -25,7 +25,7 @@ def send_whatsapp_reminder(phone_number, student_name, month, custom_message=Non
         message = twilio_client.messages.create(
             from_=f"whatsapp:{Config.TWILIO_WHATSAPP_NUMBER}",  # Your registered sender
             to=f"whatsapp:+91{phone_number}",                  # Recipient number
-            content_sid="HX143094063df9d0f0636b04e401b0d5df",  # Your approved template SID
+            content_sid="HX2be022e1998ae9d83b0adb255ce1e3e3",  # Your approved template SID
             content_variables=json.dumps({
                 "1": student_name,   # placeholder 1
                 "2": month,          # placeholder 2
