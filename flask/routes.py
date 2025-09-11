@@ -188,7 +188,15 @@ def upload_payments_excel():
         return redirect(url_for('routes.payments'))
 
     try:
-        df = pd.read_excel(file)
+        # Detect file type by extension
+        filename = file.filename.lower()
+        if filename.endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(file)
+        elif filename.endswith('.csv'):
+            df = pd.read_csv(file)
+        else:
+            flash("Unsupported file format. Please upload Excel (.xlsx, .xls) or CSV.", "danger")
+            return redirect(url_for('routes.payments'))
 
         # Normalize headers
         df.columns = [str(c).strip() for c in df.columns]
@@ -242,8 +250,6 @@ def upload_payments_excel():
                     Payment.update(existing_payment["id"], status)
                 else:
                     Payment.create(student["id"], month, year, status)
-
-
 
         flash("Payments uploaded successfully!", "success")
     except Exception as e:
