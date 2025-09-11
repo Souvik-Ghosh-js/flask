@@ -189,21 +189,44 @@ def upload_payments_excel():
 
     try:
         df = pd.read_excel(file)
-        # Columns: Student Name | Oct | Nov | ... | Sep
+
+        # Normalize headers
+        df.columns = [str(c).strip() for c in df.columns]
+
+        # Identify required columns
+        number_col = next((c for c in df.columns if "number" in c.lower()), None)
+        name_col = next((c for c in df.columns if "name" in c.lower()), None)
+
+        if not name_col:
+            raise ValueError("Could not find a 'Student Name' column")
+        if not number_col:
+            raise ValueError("Could not find a 'Student Number' column")
+
+        # Define valid month names
+        valid_months = [
+            "january", "february", "march", "april", "may", "june",
+            "july", "august", "september", "october", "november", "december"
+        ]
+
+        # Only take columns that are valid months
+        month_cols = [c for c in df.columns if c.lower() in valid_months]
+
         for _, row in df.iterrows():
-            student_name = str(row["Student's Name"]).strip()  # adjust column name if needed
+            student_number = str(row[number_col]).strip() if pd.notna(row[number_col]) else None
+            student_name = str(row[name_col]).strip() if pd.notna(row[name_col]) else None
+
             if not student_name:
                 continue
 
-            student = Student.get_by_name(student_name)
+            # You can fetch student either by number or name
+            student = Student.get_by_name(student_name) or Student.get_by_number(student_number)
             if not student:
-                continue  # skip if student not found
+                continue
 
-            # Loop through month columns
-            for month in df.columns[1:]:
+            for month in month_cols:
                 raw_value = str(row[month]).strip().lower() if pd.notna(row[month]) else ""
 
-                # Business logic: blank/NIL = unpaid, only "paid" = paid
+                # Business logic
                 status = "paid" if raw_value == "paid" else "unpaid"
 
                 # Determine year
@@ -219,6 +242,8 @@ def upload_payments_excel():
                     Payment.update(existing_payment["id"], status)
                 else:
                     Payment.create(student["id"], month, year, status)
+
+
 
         flash("Payments uploaded successfully!", "success")
     except Exception as e:
