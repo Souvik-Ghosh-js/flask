@@ -79,7 +79,8 @@ def upload_students_excel():
         else:
             df = pd.read_csv(file, header=None)
 
-        existing_phones = set(s.phone for s in Student.get_all())  # get all existing phones
+        print(Student.get_all())
+        existing_phones = set(s['phone'] for s in Student.get_all())  # get all existing phones
 
         # Skip header row, assume first col = phone, second col = name
         for i, row in df.iterrows():
@@ -111,6 +112,7 @@ def upload_students_excel():
         flash(f"Students uploaded successfully! Inserted: {inserted_count}, Skipped: {skipped_count}", "success")
 
     except Exception as e:
+        print(f"Error processing file: {e}")
         flash(f"Error processing file: {e}", "error")
 
     return redirect(url_for('routes.students'))
