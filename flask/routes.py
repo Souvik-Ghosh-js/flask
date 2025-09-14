@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from models import Student, Payment
-from utils import check_and_send_reminders , send_whatsapp_announcement
+from models import Student, Payment , Course
+from utils import check_and_send_reminders , send_whatsapp_announcement , check_and_send_reminders_batch
 from datetime import datetime
 from flask import Response
 import csv
@@ -55,15 +55,41 @@ def export_csv(table):
 @routes_bp.route('/students')
 def students():
     students = Student.get_all()
-    return render_template('students.html', students=students)
+    batches = Course.get_all()
+    return render_template('students.html', students=students , batches=batches)
 
 
 import pandas as pd
 from flask import request, redirect, url_for, flash
 
+
+@routes_bp.route('/add-batch', methods=['GET', 'POST'])
+def add_batch():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        description = request.form.get('description')
+
+        if not name:
+            flash("Batch name is required!", "danger")
+            return redirect(url_for('routes.add_batch'))
+
+        Course.create(name=name, description=description)
+        flash(f"Batch '{name}' created successfully!", "success")
+        return redirect(url_for('routes.add_batch'))
+
+    # Get all batches with student counts
+    batches = Course.get_all()
+    return render_template('add_batch.html', batches=batches)
+
+
 @routes_bp.route('/upload_students_excel', methods=['POST'])
 def upload_students_excel():
     file = request.files.get('excel_file')
+    batch_name = request.form.get('batch')  # <-- NEW
+
+    if not batch_name:
+        flash("Please select a batch before uploading.", "error")
+        return redirect(url_for('routes.students'))
 
     if not file:
         flash("No file uploaded", "error")
@@ -73,14 +99,13 @@ def upload_students_excel():
     skipped_count = 0
 
     try:
-        # Read Excel directly from memory
+        # Read Excel or CSV directly from memory
         if file.filename.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(file, header=None)
         else:
             df = pd.read_csv(file, header=None)
 
-        print(Student.get_all())
-        existing_phones = set(s['phone'] for s in Student.get_all())  # get all existing phones
+        existing_phones = set(s['phone'] for s in Student.get_all())
 
         # Skip header row, assume first col = phone, second col = name
         for i, row in df.iterrows():
@@ -90,7 +115,7 @@ def upload_students_excel():
             phone = str(row[0]).strip() if pd.notna(row[0]) else ""
             name = str(row[1]).strip() if pd.notna(row[1]) else ""
 
-            # Skip if either missing
+            # Skip if missing
             if not phone or not name:
                 skipped_count += 1
                 continue
@@ -101,15 +126,15 @@ def upload_students_excel():
                 phone = f"91{original_phone}"
 
             try:
-                Student.create(name, phone)
+                Student.create(name=name, phone=phone, course=batch_name)  # <-- Pass batch
                 existing_phones.add(phone)
                 inserted_count += 1
             except Exception as e_row:
-                # Skip problematic row without breaking
                 skipped_count += 1
                 print(f"Skipping row {i} due to error: {e_row}")
 
-        flash(f"Students uploaded successfully! Inserted: {inserted_count}, Skipped: {skipped_count}", "success")
+        flash(f"Students uploaded successfully to batch '{batch_name}'! "
+              f"Inserted: {inserted_count}, Skipped: {skipped_count}", "success")
 
     except Exception as e:
         print(f"Error processing file: {e}")
@@ -118,18 +143,29 @@ def upload_students_excel():
     return redirect(url_for('routes.students'))
 
 
-
 @routes_bp.route('/add_student', methods=['GET', 'POST'])
 def add_student():
+    # Use a proper Batch model method if you have one, otherwise call supabase here
+    batches = Course.get_all()  # ✅ Cleaner than calling supabase directly
+
     if request.method == 'POST':
         name = request.form.get('name')
         phone = request.form.get('phone')
-        
-        Student.create(name, phone)
-        flash('Student added successfully!', 'success')
+        batch_name = request.form.get('batch')
+
+        if not batch_name:
+            flash("Please select a batch.", "error")
+            return redirect(url_for('routes.add_student'))
+
+        try:
+            Student.create(name=name, phone=phone, course=batch_name)
+            flash(f'Student added successfully to batch {batch_name}!', 'success')
+        except Exception as e:
+            flash(f"Error adding student: {e}", "error")
+
         return redirect(url_for('routes.students'))
     
-    return render_template('add_student.html')
+    return render_template('add_student.html', batches=batches)
 
 @routes_bp.route('/edit_student/<int:student_id>', methods=['GET', 'POST'])
 def edit_student(student_id):
@@ -280,22 +316,119 @@ def send_reminders():
 
 @routes_bp.route("/announcement", methods=["GET"])
 def announcement():
-    return render_template("announcement.html")
+    # ✅ Use model layer instead of supabase directly
+    courses = Course.get_all()
+    return render_template("announcement.html", batches=courses)
+
 
 @routes_bp.route("/send_announcement", methods=["POST"])
 def send_announcement():
     data = request.json
     students = data.get("data", [])
+    batch_name = data.get("batch", None)
     message = data.get("message", "")
-    
+
     results = []
+
+    # ✅ Fetch students from model if batch is selected
+    if batch_name:
+        all_students = Student.get_all()
+        students = [s for s in all_students if s.get("course") == batch_name]
+
     for student in students:
         phone = student.get("phone")
         try:
-            sid = send_whatsapp_announcement(phone,  message)
+            sid = send_whatsapp_announcement(phone, message)
             results.append({"phone": phone, "status": "sent", "sid": sid})
         except Exception as e:
             results.append({"phone": phone, "status": f"failed: {e}"})
-    print(results)
+
     flash('Announcements sent successfully!', 'success')
     return jsonify({"success": True, "results": results})
+
+
+
+
+@routes_bp.route('/dues')
+def dues():
+    students = Student.get_all()
+    payments = Payment.get_all()
+    batches = Course.get_all()
+    return render_template('dues.html', students=students, payments=payments, batches=batches)
+
+@routes_bp.route('/export_dues')
+def export_dues():
+    batch = request.args.get('batch', '')
+    month = request.args.get('month', '')
+    
+    def generate():
+        header = ["Student Name", "Phone", "Batch", "Dues"]
+        yield ",".join(header) + "\n"
+        
+        students = Student.get_all()
+        payments = Payment.get_all()
+        
+        for student in students:
+            dues = []
+            for payment in payments:
+                if payment['student_id'] == student['id'] and payment['status'] == 'unpaid':
+                    if (not month or payment['month'].lower() == month.lower()) and \
+                       (not batch or student['course'] == batch):
+                        dues.append(f"{payment['month']} {payment['year']}")
+            if dues:
+                yield f"{student['name']},{student['phone']},{student['course']},\"{','.join(dues)}\"\n"
+    
+    return Response(
+        generate(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=dues.csv"}
+    )
+
+
+
+@routes_bp.route('/delete_batch/<int:course_id>', methods=['POST'])
+def delete_batch(course_id):
+    """
+    Deletes a course (batch) and all students + payments inside that course.
+    """
+    result = Course.delete_with_students(course_id)
+
+    if result.get("error"):
+        flash(f"Error: {result['error']}", "danger")
+    else:
+        flash(f"Batch deleted successfully. {result['deleted_students']} students removed.", "success")
+    
+    return redirect(url_for('routes.add_batch'))  #
+
+
+@routes_bp.route('/send_reminders_batch', methods=['POST'])
+def send_reminders_batch():
+    data = request.json
+    batch = data.get('batch', '')
+    month = data.get('month', '')
+    user_message = data.get('message', '')
+
+    # Get current date and time (fixed to September 13, 2025, 10:27 PM IST)
+
+    if not user_message:
+        flash('Please provide a reminder message.', 'danger')
+        return jsonify({'success': False, 'message': 'No message provided'})
+
+    # Call check_and_send_reminders with current time
+    results = check_and_send_reminders_batch(
+        user_message=user_message,
+        batch=batch,
+        month=month
+    )
+
+    if not results:
+        flash('No students with dues found for the selected filters.', 'warning')
+        return jsonify({'success': False, 'message': 'No students with dues found'})
+
+    success = any(r['status'] == 'sent' for r in results)
+    if success:
+        flash('Reminders sent successfully!', 'success')
+    else:
+        flash('Some reminders failed to send.', 'warning')
+
+    return jsonify({'success': success, 'results': results})

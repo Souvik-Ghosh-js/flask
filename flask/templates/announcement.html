@@ -3,24 +3,45 @@
 <div class="container mt-4">
     <h2 class="mb-4">Announcements</h2>
 
-    <!-- Upload Excel Button -->
+    <!-- Option Selector -->
     <div class="mb-3">
-        <input type="file" id="excelFile" accept=".xlsx,.xls" class="form-control">
+        <label class="form-label fw-bold">Select Announcement Type:</label>
+        <select id="announcementType" class="form-select">
+            <option value="excel">Upload Excel</option>
+            <option value="batch">Choose Batch</option>
+        </select>
     </div>
 
-    <!-- Table -->
-    <table id="announcementTable" class="table table-bordered table-striped mt-3">
-        <thead>
-            <tr>
-                <th><input type="checkbox" id="selectAll"></th>
-                <th>Phone Number</th>
-                <th>Name</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Data will be populated via JS -->
-        </tbody>
-    </table>
+    <!-- Excel Upload Section -->
+    <div id="excelSection" class="mb-4">
+        <input type="file" id="excelFile" accept=".xlsx,.xls" class="form-control mb-3">
+
+        <!-- Table -->
+        <table id="announcementTable" class="table table-bordered table-striped mt-3">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selectAll"></th>
+                    <th>Phone Number</th>
+                    <th>Name</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Populated via JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Batch Selection Section (Initially Hidden) -->
+    <div id="batchSection" class="mb-4" style="display:none;">
+        <label class="form-label">Select Batch:</label>
+        <select id="batchSelect" class="form-select">
+            <option value="">-- Select Batch --</option>
+            {% for batch in batches %}
+            <option value="{{ batch.name }}">{{ batch.name }}</option>
+            {% endfor %}
+        </select>
+        <p id="batchCount" class="text-muted mt-2" style="display:none;"></p>
+    </div>
 
     <!-- Send Announcement Button -->
     <button class="btn btn-custom mt-3" id="sendAnnouncement">Send Announcement</button>
@@ -49,8 +70,20 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script>
     let excelData = [];
+    let selectedBatch = "";
 
-    // Read Excel
+    // Switch Between Excel & Batch
+    document.getElementById("announcementType").addEventListener("change", function() {
+        if (this.value === "excel") {
+            document.getElementById("excelSection").style.display = "block";
+            document.getElementById("batchSection").style.display = "none";
+        } else {
+            document.getElementById("excelSection").style.display = "none";
+            document.getElementById("batchSection").style.display = "block";
+        }
+    });
+
+    // Excel Reading
     document.getElementById("excelFile").addEventListener("change", function(e) {
         let file = e.target.files[0];
         let reader = new FileReader();
@@ -84,12 +117,35 @@
         document.querySelectorAll(".row-check").forEach(cb => cb.checked = checked);
     });
 
+    // Batch Selection → Fetch Count
+    document.getElementById("batchSelect").addEventListener("change", function() {
+        selectedBatch = this.value;
+        if(selectedBatch) {
+            fetch(`/api/students/count/${selectedBatch}`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("batchCount").style.display = "block";
+                document.getElementById("batchCount").innerText = 
+                    `Total: ${data.total} | Paid: ${data.paid} | Unpaid: ${data.unpaid}`;
+            });
+        } else {
+            document.getElementById("batchCount").style.display = "none";
+        }
+    });
+
     // Send Button → Open Modal
     document.getElementById("sendAnnouncement").addEventListener("click", function() {
-        let selected = getSelectedRows();
-        if(selected.length === 0) {
-            alert("Please select at least one student.");
-            return;
+        let type = document.getElementById("announcementType").value;
+        if (type === "excel") {
+            if(getSelectedRows().length === 0) {
+                alert("Please select at least one student.");
+                return;
+            }
+        } else if (type === "batch") {
+            if(!selectedBatch) {
+                alert("Please select a batch first.");
+                return;
+            }
         }
         let modal = new bootstrap.Modal(document.getElementById("messageModal"));
         modal.show();
@@ -97,16 +153,25 @@
 
     // Confirm Send → Call Backend
     document.getElementById("confirmSend").addEventListener("click", function() {
-        let selected = getSelectedRows();
         let message = document.getElementById("announcementMessage").value.trim();
         if(message === "") {
             alert("Message cannot be empty.");
             return;
         }
+
+        let type = document.getElementById("announcementType").value;
+        let payload = { message: message };
+
+        if (type === "excel") {
+            payload.data = getSelectedRows();
+        } else {
+            payload.batch = selectedBatch;
+        }
+
         fetch("{{ url_for('routes.send_announcement') }}", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({data: selected, message: message})
+            body: JSON.stringify(payload)
         }).then(res => res.json())
           .then(resp => {
               alert("Messages sent successfully!");

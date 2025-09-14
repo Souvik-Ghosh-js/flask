@@ -1,0 +1,16 @@
+{% for s in students %}
+<tr>
+    <td>{{ s.name }}</td>
+    <td>{{ s.phone }}</td>
+    <td>{{ s.course }}</td>
+    <td>
+        {% for d in s.dues %}
+            {{ d.month }}/{{ d.year }}{% if not loop.last %}, {% endif %}
+        {% endfor %}
+    </td>
+    <td>
+        <button class="btn btn-sm send-call" data-phone="{{ s.phone }}">Call</button>
+        <button class="btn btn-sm send-whatsapp" data-phone="{{ s.phone }}">WhatsApp</button>
+    </td>
+</tr>
+{% endfor %}

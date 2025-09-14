@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Add New Batch</h2>
+
+    <div class="card p-4 shadow-sm">
+        <form action="{{ url_for('routes.add_batch') }}" method="POST">
+            <div class="mb-3">
+                <label for="batchName" class="form-label">Batch Name</label>
+                <input type="text" class="form-control" id="batchName" name="name" placeholder="Enter batch name"
+                    required>
+            </div>
+
+            <div class="mb-3">
+                <label for="batchDescription" class="form-label">Description (Optional)</label>
+                <textarea class="form-control" id="batchDescription" name="description" rows="3"
+                    placeholder="Brief description of the batch"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-custom">Create Batch</button>
+        </form>
+    </div>
+
+    <hr class="my-4">
+
+    <h4>Existing Batches</h4>
+    <table class="table table-bordered table-hover mt-3" id="batchTable">
+        <thead class="table-light">
+            <tr>
+                <th>ID</th>
+                <th>Batch Name</th>
+                <th>Description</th>
+                <th>Total Students</th>
+                <th>Paid</th>
+                <th>Unpaid</th>
+                <th>Created At</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for batch in batches %}
+            <tr>
+                <td>{{ batch.id }}</td>
+                <td>{{ batch.name }}</td>
+                <td>{{ batch.description or '-' }}</td>
+                <td>{{ batch.total_students or 0 }}</td>
+                <td class="text-success fw-bold">{{ batch.paid_students or 0 }}</td>
+                <td class="text-danger fw-bold">{{ batch.unpaid_students or 0 }}</td>
+                <td>{{ batch.created_at[:10] if batch.created_at else '-' }}</td>
+                <td>
+                    <form action="{{ url_for('routes.delete_batch', course_id=batch.id) }}" method="POST"
+                        style="display:inline;"
+                        onsubmit="return confirm('Are you sure you want to delete this batch? All students and their payments will also be deleted.');">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</div>
+
+<script>
+    $(document).ready(function () {
+        $('#batchTable').DataTable();
+    });
+</script>
+{% endblock %}

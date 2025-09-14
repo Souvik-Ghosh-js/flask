@@ -12,7 +12,7 @@
         padding: 30px;
         background: linear-gradient(135deg, #6a11cb, #2575fc);
         border-radius: 15px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
         color: white;
     }
 
@@ -21,6 +21,7 @@
         margin-bottom: 25px;
         font-weight: 700;
     }
+
 
     .form-container label {
         display: block;
@@ -39,7 +40,40 @@
     }
 
     .form-container input:focus {
-        box-shadow: 0 0 5px rgba(255,255,255,0.8);
+        box-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+    }
+
+    .form-container select {
+        width: 100%;
+        padding: 10px 15px;
+        margin-bottom: 20px;
+        border: none;
+        border-radius: 8px;
+        outline: none;
+        font-size: 1rem;
+        background-color: white;
+        color: #333;
+        appearance: none;
+        /* Removes default browser styling */
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+    }
+
+    .form-container select:focus {
+        box-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+        border: 1px solid #fff;
+    }
+
+    /* Optional: Add a nice dropdown arrow */
+    .form-container select {
+        background-image: linear-gradient(45deg, #fff 50%, #ddd 50%),
+            linear-gradient(135deg, #ddd 50%, #fff 50%);
+        background-position: calc(100% - 20px) calc(1em + 2px),
+            calc(100% - 15px) calc(1em + 2px);
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
     }
 
     .form-container button {
@@ -58,7 +92,7 @@
 
     .form-container button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     }
 </style>
 
@@ -71,7 +105,16 @@
         <label for="phone">Phone</label>
         <input type="text" id="phone" name="phone" placeholder="Enter phone number" required>
 
+        <label for="batch">Batch</label>
+        <select id="batch" name="batch" required>
+            <option value="">-- Select Batch --</option>
+            {% for batch in batches %}
+            <option value="{{ batch.name }}">{{ batch.name }}</option>
+            {% endfor %}
+        </select>
+
         <button type="submit">Save</button>
     </form>
 </div>
+
 {% endblock %}

@@ -56,6 +56,75 @@ def check_and_send_reminders(force=False, user_message=None):
 
             print(f"Sent reminders to {student_name}: Voice SID - {voice_sid}, WhatsApp SID - {whatsapp_sid}")
 
+
+from datetime import datetime
+import calendar
+from models import Payment, Student
+
+def check_and_send_reminders_batch(user_message, batch=None, month=None):
+    # Fetch all unpaid payments, optionally filtered by batch and month
+    all_unpaid = Payment.get_all_unpaid_students()
+
+    # Filter by batch and month if provided
+    if batch or month:
+        filtered_unpaid = []
+        for student in all_unpaid:
+            filtered_dues = [
+                due for due in student['dues']
+                if (not batch or student['students']['course'] == batch)
+                and (not month or due['month'].lower() == month.lower())
+            ]
+            if filtered_dues:
+                filtered_unpaid.append({
+                    'students': student['students'],
+                    'dues': filtered_dues
+                })
+        all_unpaid = filtered_unpaid
+
+    # If no unpaid students match the filters, return
+    if not all_unpaid:
+        print("No unpaid dues found for the specified filters.")
+        return []
+
+    results = []
+    default_message = user_message
+    for student in all_unpaid:
+        student_name = student['students']['name']
+        phone = student['students']['phone']
+        due_months = [f"{due['month']} {due['year']}" for due in student['dues']]
+        due_text = ', '.join(due_months)
+
+        # Format the message
+        formatted_message = default_message
+
+        try:
+            # Send WhatsApp reminder
+            whatsapp_sid = send_whatsapp_reminder(phone, student_name, due_text, custom_message=formatted_message)
+            voice_sid = None
+            try:
+                # Send voice reminder (assumes this function exists)
+                voice_sid = send_voice_reminder(phone, student_name, due_text)
+            except Exception as e:
+                print(f"Voice reminder failed for {student_name}: {str(e)}")
+
+            print(f"Sent reminders to {student_name}: Voice SID - {voice_sid}, WhatsApp SID - {whatsapp_sid}")
+            results.append({
+                'phone': phone,
+                'name': student_name,
+                'status': 'sent',
+                'whatsapp_sid': whatsapp_sid,
+                'voice_sid': voice_sid
+            })
+        except Exception as e:
+            print(f"Failed to send reminders to {student_name}: {str(e)}")
+            results.append({
+                'phone': phone,
+                'name': student_name,
+                'status': f'failed: {str(e)}'
+            })
+
+    return results
+
 def send_whatsapp_announcement(phone_number, custom_message):
     """
     Send a WhatsApp announcement message using Twilio.
@@ -67,11 +136,14 @@ def send_whatsapp_announcement(phone_number, custom_message):
         message = twilio_client.messages.create(
             from_=f"whatsapp:{Config.TWILIO_WHATSAPP_NUMBER}",
             to=f"whatsapp:+91{phone_number}",
-            content_sid="HX1a6e4a6d1e6d6667a7c94a615a7c9429",  # <-- create new approved template for announcements
+            content_sid="HXf12f68046f48e82b768c89db8c250755",  # <-- create new approved template for announcements
             content_variables=json.dumps({
                 "1": custom_message
             })
         )
+        messages = twilio_client.messages(message.sid).fetch()
+        print(f"Message status: {messages.status} , {messages.error_code} , {messages.error_message}")
+        print(f"Announcementss sent to {phone_number}, SID: {message.sid}")
         return message.sid
     except Exception as e:
         print(f"Error sending WhatsApp announcement: {e}")
