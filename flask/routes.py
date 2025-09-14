@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from models import Student, Payment , Course
-from utils import check_and_send_reminders , send_whatsapp_announcement , check_and_send_reminders_batch
+from utils import check_and_send_reminders , send_whatsapp_announcement , check_and_send_reminders_batch , send_voice_reminder , send_whatsapp_reminder
 from datetime import datetime
 from flask import Response
 import csv
@@ -432,3 +432,38 @@ def send_reminders_batch():
         flash('Some reminders failed to send.', 'warning')
 
     return jsonify({'success': success, 'results': results})
+
+
+@routes_bp.route('/send_reminder_single', methods=['POST'])
+def send_reminder_single():
+    data = request.json
+    phone = data.get("phone")
+    name = data.get("name")
+    months = data.get("months", [])
+    message = data.get("message", "")
+
+    if not phone or not name or not months:
+        return jsonify({"success": False, "message": "Missing phone, name, or months"}), 400
+
+    try:
+        # Prepare month list string
+        months_str = ", ".join(months)
+
+        # Send WhatsApp reminder
+        sid_whatsapp = send_whatsapp_reminder(phone, name, months_str, custom_message=message)
+
+        # Send voice call reminder
+        sid_voice = send_voice_reminder(phone, name, months_str)
+
+        if sid_whatsapp or sid_voice:
+            return jsonify({
+                "success": True,
+                "message": f"Reminder sent to {name} for {months_str}!",
+                "whatsapp_sid": sid_whatsapp,
+                "voice_sid": sid_voice
+            })
+        else:
+            return jsonify({"success": False, "message": f"Failed to send reminders to {name}."}), 500
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500

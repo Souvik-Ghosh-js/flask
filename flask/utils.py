@@ -132,17 +132,17 @@ def send_whatsapp_announcement(phone_number, custom_message):
     student_name: str
     custom_message: str (user typed message from Announcement page)
     """
+    student_name = "Jibak"
     try:
         message = twilio_client.messages.create(
-            from_=f"whatsapp:{Config.TWILIO_WHATSAPP_NUMBER}",
-            to=f"whatsapp:+91{phone_number}",
-            content_sid="HXf12f68046f48e82b768c89db8c250755",  # <-- create new approved template for announcements
+            from_=f"whatsapp:{Config.TWILIO_WHATSAPP_NUMBER}",  # Your registered sender
+            to=f"whatsapp:+91{phone_number}",                  # Recipient number
+            content_sid="HXe674c3d6db6cc0ecd03000674abc1e9d",  # Your approved template SID
             content_variables=json.dumps({
-                "1": custom_message
+                "1": student_name,   # placeholder 1
+                "2": custom_message if custom_message else "Thank You!"  # placeholder 3
             })
         )
-        messages = twilio_client.messages(message.sid).fetch()
-        print(f"Message status: {messages.status} , {messages.error_code} , {messages.error_message}")
         print(f"Announcementss sent to {phone_number}, SID: {message.sid}")
         return message.sid
     except Exception as e:
