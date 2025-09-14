@@ -70,154 +70,195 @@
         background-color: #ffe6e6 !important;
     }
 </style>
-</head>
 
-<body>
+<div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
 
-
-    <div class="container mt-4">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <div class="card p-4 mb-4">
+        <h3 class="card-title mb-4">Dues Management</h3>
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label for="batchFilter" class="form-label">Select Batch</label>
+                <select class="form-select" id="batchFilter">
+                    <option value="">All Batches</option>
+                    {% for batch in batches %}
+                    <option value="{{ batch.name }}">{{ batch.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="monthFilter" class="form-label">Select Month</label>
+                <select class="form-select" id="monthFilter">
+                    <option value="">Latest Month</option>
+                    {% for month in ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+                    'September', 'October', 'November', 'December'] %}
+                    <option value="{{ month }}">{{ month }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 align-self-end">
+                <button class="btn btn-custom mt-3" onclick="sendReminders()">Send Reminders</button>
+                <button class="btn btn-custom mt-3" onclick="exportDues()">Export Dues</button>
+            </div>
         </div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
 
-        <div class="card p-4 mb-4">
-            <h3 class="card-title mb-4">Dues Management</h3>
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="batchFilter" class="form-label">Select Batch</label>
-                    <select class="form-select" id="batchFilter">
-                        <option value="">All Batches</option>
-                        {% for batch in batches %}
-                        <option value="{{ batch.name }}">{{ batch.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label for="monthFilter" class="form-label">Select Month</label>
-                    <select class="form-select" id="monthFilter">
-                        <option value="">Latest Month</option>
-                        {% for month in ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
-                        'September', 'October', 'November', 'December'] %}
-                        <option value="{{ month }}">{{ month }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4 align-self-end">
-                    <button class="btn btn-custom mt-3" onclick="sendReminders()">Send Reminders</button>
-                    <button class="btn btn-custom mt-3" onclick="exportDues()">Export Dues</button>
+        <table id="duesTable" class="table table-striped" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Student Name</th>
+                    <th>Phone</th>
+                    <th>Batch</th>
+                    <th>Dues</th>
+                    <th style="display:none;">DuesCount</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                {% set dues = [] %}
+                {% for payment in payments if payment.student_id == student.id and payment.status == 'unpaid' %}
+                {% set _ = dues.append(payment.month ~ ' ' ~ payment.year) %}
+                {% endfor %}
+                <tr class="{% if dues|length > 1 %}table-danger{% endif %}">
+                    <td>{{ student.name }}</td>
+                    <td>{{ student.phone }}</td>
+                    <td>{{ student.course }}</td>
+                    <td>{{ dues|join(', ') or 'None' }}</td>
+                    <td style="display:none;">{{ dues|length }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-custom"
+                            onclick="sendReminder('{{ student.phone }}', '{{ student.name }}')">
+                            Send Reminder
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Reminder Modal -->
+<div class="modal fade" id="reminderModal" tabindex="-1" aria-labelledby="reminderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reminderModalLabel">Send Custom Reminder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="reminderMessage" class="form-label">Message Template</label>
+                    <textarea name="reminderMessage" id="reminderMessage" rows="4" class="form-control"
+                        placeholder="Hi {name}, this is Jibak from SD Sir's Classes. This is a reminder that your tuition fees is due for the month of {month}. Note: "></textarea>
+                    <small class="text-muted">
+                        You can use <code>{name}</code> and <code>{month}</code> placeholders. They will be replaced dynamically.
+                    </small>
                 </div>
             </div>
 
-            <table id="duesTable" class="table table-striped" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>Student Name</th>
-                        <th>Phone</th>
-                        <th>Batch</th>
-                        <th>Dues</th>
-                        <th style="display:none;">DuesCount</th> <!-- Hidden column -->
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for student in students %}
-                    {% set dues = [] %}
-                    {% for payment in payments if payment.student_id == student.id and payment.status == 'unpaid' %}
-                    {% set _ = dues.append(payment.month ~ ' ' ~ payment.year) %}
-                    {% endfor %}
-                    <tr class="{% if dues|length > 1 %}table-danger{% endif %}">
-                        <td>{{ student.name }}</td>
-                        <td>{{ student.phone }}</td>
-                        <td>{{ student.course }}</td>
-                        <td>
-                            {{ dues|join(', ') or 'None' }}
-                        </td>
-                        <td style="display:none;">{{ dues|length }}</td> <!-- hidden column for sorting -->
-                        <td>
-                            <button class="btn btn-sm btn-custom"
-                                onclick="sendReminder('{{ student.phone }}', '{{ student.name }}')">
-                                Send Reminder
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-
-
-
-            </table>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-custom" id="sendRemindersConfirm">Send Reminders</button>
+            </div>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
-    <script>
-        $(document).ready(function () {
-            const table = $('#duesTable').DataTable({
-                order: [[4, 'desc']],  // sort by dues count
-                columnDefs: [
-                    { targets: 4, visible: false },
-                    { orderable: false, targets: 5 }
-                ],
-            });
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
 
-            $('#batchFilter').on('change', function () {
-                table.column(2).search($(this).val()).draw();
-            });
+<script>
+    let selectedStudent = null;
 
-            $('#monthFilter').on('change', function () {
-                table.column(3).search($(this).val(), true, false).draw();
-            });
+    $(document).ready(function () {
+        const table = $('#duesTable').DataTable({
+            order: [[4, 'desc']],
+            columnDefs: [
+                { targets: 4, visible: false },
+                { orderable: false, targets: 5 }
+            ],
         });
 
+        $('#batchFilter').on('change', function () {
+            table.column(2).search($(this).val()).draw();
+        });
 
+        $('#monthFilter').on('change', function () {
+            table.column(3).search($(this).val(), true, false).draw();
+        });
+    });
 
+    function sendReminder(phone, name) {
+        selectedStudent = { phone, name };
+        const month = $('#monthFilter').val() || "{month}";
+        $('#reminderMessage').val(`Hi ${name}, this is Jibak from SD Sir's Classes. This is a reminder that your tuition fees is due for the month of ${month}. Note: `);
+        $('#sendRemindersConfirm').text('Send Reminder');
+        $('#reminderModal').modal('show');
+    }
 
+    function sendReminders() {
+        selectedStudent = null;
+        const month = $('#monthFilter').val() || "{month}";
+        $('#reminderMessage').val(`Hi {name}, this is Jibak from SD Sir's Classes. This is a reminder that your tuition fees is due for the month of ${month}. Note: `);
+        $('#sendRemindersConfirm').text('Send Reminders');
+        $('#reminderModal').modal('show');
+    }
 
-        function sendReminder(phone, name) {
-            const message = `Reminder: Dear ${name}, you have pending dues. Please make the payment at your earliest convenience.`;
+    $('#sendRemindersConfirm').on('click', function () {
+        const batch = $('#batchFilter').val();
+        const month = $('#monthFilter').val();
+        const userMessage = $('#reminderMessage').val().trim();
+
+        if (!userMessage) {
+            alert("Please enter a reminder message before sending.");
+            return;
+        }
+
+        if (selectedStudent) {
+            // Single student reminder
             $.ajax({
                 url: '{{ url_for("routes.send_announcement") }}',
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
-                    data: [{ phone: phone }],
-                    message: message
+                    data: [{ phone: selectedStudent.phone }],
+                    message: userMessage.replace("{name}", selectedStudent.name).replace("{month}", month || "this month")
                 }),
                 success: function (response) {
-                    alert('Reminder sent successfully!');
+                    $('#reminderModal').modal('hide');
+                    alert(response.message || 'Reminder sent successfully!');
+                    selectedStudent = null;
                 },
                 error: function () {
+                    $('#reminderModal').modal('hide');
                     alert('Error sending reminder.');
+                    selectedStudent = null;
                 }
             });
-        }
-
-        function sendReminders() {
-            const batch = $('#batchFilter').val();
-            const month = $('#monthFilter').val();
-            const message = `Reminder: You have pending dues for ${month || 'the latest month'}. Please make the payment at your earliest convenience.`;
+        } else {
+            // Batch reminders
             const students = [];
-
             $('#duesTable tbody tr').each(function () {
                 const rowBatch = $(this).find('td:eq(2)').text();
                 const dues = $(this).find('td:eq(3)').text();
                 if ((batch === '' || rowBatch === batch) && (month === '' || dues.includes(month))) {
-                    students.push({
-                        phone: $(this).find('td:eq(1)').text()
-                    });
+                    students.push({ phone: $(this).find('td:eq(1)').text() });
                 }
             });
 
@@ -228,21 +269,25 @@
                 data: JSON.stringify({
                     data: students,
                     batch: batch,
-                    message: message
+                    month: month,
+                    message: userMessage
                 }),
                 success: function (response) {
-                    alert('Reminders sent successfully!');
+                    $('#reminderModal').modal('hide');
+                    alert(response.message || 'Reminders sent successfully!');
                 },
                 error: function () {
+                    $('#reminderModal').modal('hide');
                     alert('Error sending reminders.');
                 }
             });
         }
+    });
 
-        function exportDues() {
-            const batch = $('#batchFilter').val();
-            const month = $('#monthFilter').val();
-            window.location.href = '{{ url_for("routes.export_dues") }}?batch=' + encodeURIComponent(batch) + '&month=' + encodeURIComponent(month);
-        }
-    </script>
-    {% endblock %}
+    function exportDues() {
+        const batch = $('#batchFilter').val();
+        const month = $('#monthFilter').val();
+        window.location.href = '{{ url_for("routes.export_dues") }}?batch=' + encodeURIComponent(batch) + '&month=' + encodeURIComponent(month);
+    }
+</script>
+{% endblock %}
