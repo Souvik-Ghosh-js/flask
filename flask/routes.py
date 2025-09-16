@@ -232,6 +232,10 @@ def add_payment():
 import pandas as pd
 from flask import request, redirect, url_for, flash
 
+import pandas as pd
+import chardet  # pip install chardet
+from io import BytesIO
+
 @routes_bp.route('/upload_payments_excel', methods=['POST'])
 def upload_payments_excel():
     if 'excel_file' not in request.files:
@@ -244,20 +248,32 @@ def upload_payments_excel():
         return redirect(url_for('routes.payments'))
 
     try:
-        # Detect file type by extension
         filename = file.filename.lower()
+
         if filename.endswith(('.xlsx', '.xls')):
+            # Excel can be read directly
             df = pd.read_excel(file)
+
         elif filename.endswith('.csv'):
-            df = pd.read_csv(file)
+            # --- Auto detect encoding ---
+            raw_data = file.read()
+            result = chardet.detect(raw_data)
+            detected_encoding = result.get("encoding", "utf-8")
+
+            try:
+                df = pd.read_csv(BytesIO(raw_data), encoding=detected_encoding)
+            except UnicodeDecodeError:
+                # Fallback to latin1 if decoding fails
+                df = pd.read_csv(BytesIO(raw_data), encoding="latin1")
+
         else:
             flash("Unsupported file format. Please upload Excel (.xlsx, .xls) or CSV.", "danger")
             return redirect(url_for('routes.payments'))
 
-        # Normalize headers
+        # --- Normalize headers ---
         df.columns = [str(c).strip() for c in df.columns]
 
-        # Identify required columns
+        # --- Identify required columns ---
         number_col = next((c for c in df.columns if "number" in c.lower()), None)
         name_col = next((c for c in df.columns if "name" in c.lower()), None)
 
@@ -266,13 +282,11 @@ def upload_payments_excel():
         if not number_col:
             raise ValueError("Could not find a 'Student Number' column")
 
-        # Define valid month names
         valid_months = [
             "january", "february", "march", "april", "may", "june",
             "july", "august", "september", "october", "november", "december"
         ]
 
-        # Only take columns that are valid months
         month_cols = [c for c in df.columns if c.lower() in valid_months]
 
         for _, row in df.iterrows():
@@ -282,25 +296,18 @@ def upload_payments_excel():
             if not student_name:
                 continue
 
-            # You can fetch student either by number or name
             student = Student.get_by_name(student_name) or Student.get_by_number(student_number)
             if not student:
                 continue
 
             for month in month_cols:
                 raw_value = str(row[month]).strip().lower() if pd.notna(row[month]) else ""
-
-                # Business logic
                 status = "paid" if raw_value == "paid" else "unpaid"
 
                 # Determine year
                 month_lower = month.lower()
-                if month_lower in ["october", "november", "december"]:
-                    year = 2024
-                else:
-                    year = 2025
+                year = 2024 if month_lower in ["october", "november", "december"] else 2025
 
-                # Check existing payment
                 existing_payment = Payment.get_by_student_month_year(student["id"], month, year)
                 if existing_payment:
                     Payment.update(existing_payment["id"], status)
@@ -308,6 +315,7 @@ def upload_payments_excel():
                     Payment.create(student["id"], month, year, status)
 
         flash("Payments uploaded successfully!", "success")
+
     except Exception as e:
         print(f"Error processing file: {e}")
         flash(f"Error processing file: {str(e)}", "danger")
