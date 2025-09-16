@@ -6,3 +6,4 @@ python-dateutil
 schedule
 gunicorn
 pandas
+chardet

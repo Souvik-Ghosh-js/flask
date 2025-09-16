@@ -82,10 +82,13 @@ def add_batch():
     return render_template('add_batch.html', batches=batches)
 
 
+import pandas as pd
+import chardet  # make sure you install this: pip install chardet
+
 @routes_bp.route('/upload_students_excel', methods=['POST'])
 def upload_students_excel():
     file = request.files.get('excel_file')
-    batch_name = request.form.get('batch')  # <-- NEW
+    batch_name = request.form.get('batch')
 
     if not batch_name:
         flash("Please select a batch before uploading.", "error")
@@ -99,15 +102,32 @@ def upload_students_excel():
     skipped_count = 0
 
     try:
-        # Read Excel or CSV directly from memory
         if file.filename.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(file, header=None)
         else:
-            df = pd.read_csv(file, header=None)
+            # --- Auto-detect encoding first ---
+            raw_data = file.read()
+            result = chardet.detect(raw_data)
+            detected_encoding = result.get("encoding", "utf-8")
+            confidence = result.get("confidence", 0)
+
+            try:
+                # Try with detected encoding first
+                df = pd.read_csv(
+                    pd.io.common.BytesIO(raw_data),
+                    header=None,
+                    encoding=detected_encoding
+                )
+            except UnicodeDecodeError:
+                # Fallback to latin1 if decoding fails
+                df = pd.read_csv(
+                    pd.io.common.BytesIO(raw_data),
+                    header=None,
+                    encoding="latin1"
+                )
 
         existing_phones = set(s['phone'] for s in Student.get_all())
 
-        # Skip header row, assume first col = phone, second col = name
         for i, row in df.iterrows():
             if i == 0:
                 continue
@@ -115,18 +135,16 @@ def upload_students_excel():
             phone = str(row[0]).strip() if pd.notna(row[0]) else ""
             name = str(row[1]).strip() if pd.notna(row[1]) else ""
 
-            # Skip if missing
             if not phone or not name:
                 skipped_count += 1
                 continue
 
-            # Handle duplicate phone numbers
             original_phone = phone
             while phone in existing_phones:
                 phone = f"91{original_phone}"
 
             try:
-                Student.create(name=name, phone=phone, course=batch_name)  # <-- Pass batch
+                Student.create(name=name, phone=phone, course=batch_name)
                 existing_phones.add(phone)
                 inserted_count += 1
             except Exception as e_row:
