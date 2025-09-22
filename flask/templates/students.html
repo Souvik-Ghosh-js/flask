@@ -152,7 +152,6 @@
         transform: translateY(-1px);
     }
 </style>
-
 <h2>Students</h2>
 
 <div class="action-bar">
@@ -168,9 +167,9 @@
 <!-- Batch Filter Dropdown -->
 <div class="batch-filter-container">
     <select id="batchFilter" class="batch-filter">
-        <option value="">-- Filter by Batch --</option>
+        <option value="">-- Show All Batches --</option>
         {% for batch in batches %}
-        <option value="{{ batch.name }}">{{ batch.name }}</option>
+        <option value="{{ batch.name }}">{{ batch.name }} ({{ batch.total_students or 0 }} students)</option>
         {% endfor %}
     </select>
 </div>
@@ -180,14 +179,24 @@
     <div class="modal-content">
         <h3>Upload Students Excel</h3>
         <form action="{{ url_for('routes.upload_students_excel') }}" method="POST" enctype="multipart/form-data">
-            <select name="batch" required>
-                <option value="">-- Select Batch --</option>
-                {% for batch in batches %}
-                <option value="{{ batch.name }}">{{ batch.name }}</option>
-                {% endfor %}
-            </select>
-
-            <input type="file" name="excel_file" accept=".xlsx,.xls,.csv" required>
+            <div class="mb-3">
+                <label for="batch" class="form-label">Select Batch</label>
+                <select name="batch" class="form-select" required>
+                    <option value="">-- Select Batch --</option>
+                    {% for batch in batches %}
+                    <option value="{{ batch.name }}">{{ batch.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="mb-3">
+                <label for="excel_file" class="form-label">Excel File</label>
+                <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls,.csv" required>
+                <div class="form-text">
+                    File format: First column - Phone Number, Second column - Student Name<br>
+                    Same phone numbers can be used in different batches.
+                </div>
+            </div>
 
             <div class="modal-footer">
                 <button type="button" class="cancel-btn" id="closeModalBtn">Cancel</button>
@@ -204,6 +213,7 @@
                 <th>Name</th>
                 <th>Phone</th>
                 <th>Batch</th>
+                <th>Email</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -213,8 +223,10 @@
                 <td>{{ s.name }}</td>
                 <td>{{ s.phone }}</td>
                 <td>{{ s.course }}</td>
+                <td>{{ s.email or '-' }}</td>
                 <td>
-                    <a href="{{ url_for('routes.delete_student', student_id=s.id) }}" class="delete-btn"
+                    <a href="{{ url_for('routes.edit_student', student_id=s.id) }}" class="btn btn-sm btn-primary">Edit</a>
+                    <a href="{{ url_for('routes.delete_student', student_id=s.id) }}" class="btn btn-sm btn-danger"
                         onclick="return confirm('Are you sure you want to delete this student?');">
                         Delete
                     </a>
@@ -237,7 +249,7 @@
             searching: true,
             scrollX: true,
             fixedHeader: true,
-            columnDefs: [{ orderable: false, targets: 3 }]
+            columnDefs: [{ orderable: false, targets: 4 }]
         });
 
         // Modal open/close
@@ -255,10 +267,14 @@
             }
         });
 
-        // 🔥 Batch Filter Logic
+        // Batch Filter Logic
         $('#batchFilter').on('change', function () {
             const selectedBatch = $(this).val();
-            table.column(2).search(selectedBatch).draw();
+            if (selectedBatch) {
+                table.column(2).search(selectedBatch).draw();
+            } else {
+                table.column(2).search('').draw();
+            }
         });
     });
 </script>

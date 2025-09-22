@@ -4,6 +4,8 @@ from config import Config
 
 supabase: Client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
 
+
+
 class Student:
     @staticmethod
     def get_all():
@@ -21,17 +23,30 @@ class Student:
         return response.data[0] if response.data else None
 
     @staticmethod
-    def create(name, phone, course=None):
-        """
-        Creates a student.
-        - `course` can represent the batch name.
-        """
+    def get_by_phone(phone):
+        """Get all students with this phone number"""
+        response = supabase.table('students').select('*, course').eq('phone', phone).execute()
+        return response.data or []
+
+    @staticmethod
+    def get_by_phone_and_batch(phone, batch):
+        """Get student by phone number and batch"""
+        response = supabase.table('students').select('*, course').eq('phone', phone).eq('course', batch).execute()
+        return response.data[0] if response.data else None
+
+    @staticmethod
+    def create(name, phone, course=None, email=None):
+        # Check if student with same phone already exists in this batch
+        existing_student = Student.get_by_phone_and_batch(phone, course)
+        if existing_student:
+            raise Exception(f"Student with phone {phone} already exists in batch {course}")
+        
         data = {
             'name': name,
             'phone': phone,
-            'course': course
+            'course': course,
+            'email': email
         }
-        # Remove None fields
         data = {k: v for k, v in data.items() if v is not None}
 
         response = supabase.table('students').insert(data).execute()
@@ -39,9 +54,6 @@ class Student:
 
     @staticmethod
     def update(student_id, name=None, phone=None, email=None, course=None):
-        """
-        Updates a student record. Only updates fields that are passed.
-        """
         update_data = {}
         if name is not None:
             update_data['name'] = name
@@ -62,24 +74,18 @@ class Student:
     def delete(student_id):
         response = supabase.table('students').delete().eq('id', student_id).execute()
         return response.data
-
-
 class Course:
     @staticmethod
     def get_all():
-        # 1. Get all courses
         courses_response = supabase.table('courses').select('*').execute()
         courses = courses_response.data or []
 
-        # 2. Get all students
         students_response = supabase.table('students').select('id, name, course').execute()
         students = students_response.data or []
 
-        # 3. Get all payments
         payments_response = supabase.table('payments').select('student_id, status').execute()
         payments = payments_response.data or []
 
-        # Build a map of student_id -> payment status list
         student_payments = {}
         for p in payments:
             sid = p["student_id"]
@@ -87,7 +93,6 @@ class Course:
                 student_payments[sid] = []
             student_payments[sid].append(p["status"])
 
-        # Build stats per course
         course_stats = {}
         for student in students:
             course_name = student.get("course")
@@ -99,16 +104,13 @@ class Course:
 
             course_stats[course_name]["total"] += 1
 
-            # Check payments for this student
             statuses = student_payments.get(student["id"], [])
             if any(s == "unpaid" for s in statuses):
                 course_stats[course_name]["unpaid"] += 1
             else:
-                # If student has payments and none are unpaid => consider paid
                 if statuses:
                     course_stats[course_name]["paid"] += 1
 
-        # Merge counts into courses
         for course in courses:
             stats = course_stats.get(course["name"], {"total": 0, "paid": 0, "unpaid": 0})
             course["total_students"] = stats["total"]
@@ -124,9 +126,6 @@ class Course:
 
     @staticmethod
     def create(name, description=None):
-        """
-        Creates a course/batch.
-        """
         data = {'name': name}
         if description:
             data['description'] = description
@@ -152,13 +151,9 @@ class Course:
     def delete(course_id):
         response = supabase.table('courses').delete().eq('id', course_id).execute()
         return response.data
+
     @staticmethod
     def delete_with_students(course_id):
-        """
-        Deletes a course and all its students + payments in that course.
-        """
-
-        # 1. Get the course
         course_resp = supabase.table('courses').select('*').eq('id', course_id).execute()
         if not course_resp.data:
             return {"error": "Course not found"}
@@ -166,24 +161,18 @@ class Course:
         course = course_resp.data[0]
         course_name = course['name']
 
-        # 2. Get all students in this course
         students_resp = supabase.table('students').select('id').eq('course', course_name).execute()
         students = students_resp.data or []
 
-        # 3. If students exist, delete their payments first
         if students:
             student_ids = [s['id'] for s in students]
-
-            # Delete payments for these students
             supabase.table('payments').delete().in_('student_id', student_ids).execute()
-
-            # Delete students
             supabase.table('students').delete().in_('id', student_ids).execute()
 
-        # 4. Delete the course
         supabase.table('courses').delete().eq('id', course_id).execute()
 
         return {"success": True, "deleted_students": len(students)}
+
 class Payment:
     @staticmethod
     def get_all():
@@ -194,7 +183,7 @@ class Payment:
         while True:
             response = (
                 supabase.table("payments")
-                .select("*, students(name, phone, course)")  # include course name
+                .select("*, students(name, phone, course)")
                 .gt("id", last_id)
                 .order("id")
                 .limit(chunk_size)
@@ -208,23 +197,25 @@ class Payment:
             all_data.extend(data)
             last_id = data[-1]["id"]
 
-            print(f"Fetched {len(data)} records (total so far: {len(all_data)})")
-
             if len(data) < chunk_size:
                 break
 
-        print("Final length of payments:", len(all_data))
         return all_data
 
     @staticmethod
-    def get_by_student_month_year(student_id, month, year):
+    def get_by_student_month_year_batch(student_id, month, year, batch):
         response = supabase.table('payments') \
-            .select('*') \
+            .select('*, students(course)') \
             .eq('student_id', student_id) \
             .eq('month', month) \
             .eq('year', year) \
             .execute()
-        return response.data[0] if response.data else None
+        
+        payments = response.data or []
+        for payment in payments:
+            if payment.get('students', {}).get('course') == batch:
+                return payment
+        return None
 
     @staticmethod
     def get_by_student(student_id):
@@ -232,7 +223,13 @@ class Payment:
         return response.data
 
     @staticmethod
-    def create(student_id, month, year, status='paid'):
+    def create(student_id, month, year, status='paid', batch=None):
+        # Check if payment already exists for this student, month, year, AND batch
+        if batch:
+            existing = Payment.get_by_student_month_year_batch(student_id, month, year, batch)
+            if existing:
+                raise Exception(f"Payment already exists for this student in {month} {year} for batch {batch}")
+        
         response = supabase.table('payments').insert({
             'student_id': student_id,
             'month': month,
@@ -249,10 +246,15 @@ class Payment:
         return response.data[0] if response.data else None
 
     @staticmethod
-    def get_unpaid_students(month, year):
+    def get_unpaid_students(month, year, batch=None):
         response = supabase.table('payments').select('*, students(name, phone, email, course)') \
             .eq('month', month).eq('year', year).eq('status', 'unpaid').execute()
-        return response.data
+        
+        data = response.data or []
+        if batch:
+            data = [p for p in data if p.get('students', {}).get('course') == batch]
+        
+        return data
 
     @staticmethod
     def get_all_unpaid_students():
@@ -281,8 +283,7 @@ class Payment:
             })
         
         return list(students_dict.values())
-    
-    # Add this method to the Payment class
+
     @staticmethod
     def get_unpaid_by_student(student_id):
         response = supabase.table('payments')\

@@ -1,9 +1,13 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from models import Student, Payment , Course
-from utils import check_and_send_reminders , send_whatsapp_announcement , check_and_send_reminders_batch , send_voice_reminder , send_whatsapp_reminder
+from models import Student, Payment, Course
+from utils import check_and_send_reminders, send_whatsapp_announcement, check_and_send_reminders_batch, send_voice_reminder, send_whatsapp_reminder
 from datetime import datetime
 from flask import Response
 import csv
+import pandas as pd
+import chardet
+from io import BytesIO
+
 # Blueprint setup
 routes_bp = Blueprint("routes", __name__)
 
@@ -26,42 +30,36 @@ def dashboard():
         unpaid_count=unpaid_count
     )
 
-
-
 @routes_bp.route('/export/<string:table>')
 def export_csv(table):
     def generate():
         data = []
         if table == "students":
             data = Student.get_all()
-            header = ["ID", "Name", "Phone", "Email"]
+            header = ["ID", "Name", "Phone", "Email", "Batch"]
             yield ",".join(header) + "\n"
             for s in data:
-                yield f"{s['id']},{s['name']},{s['phone']},{s['email']}\n"
+                yield f"{s['id']},{s['name']},{s['phone']},{s.get('email', '')},{s.get('course', '')}\n"
 
         elif table == "payments":
             data = Payment.get_all()
-            header = ["ID", "Student", "Month", "Year", "Amount", "Status"]
+            header = ["ID", "Student", "Phone", "Batch", "Month", "Year", "Amount", "Status"]
             yield ",".join(header) + "\n"
             for p in data:
-                yield f"{p['id']},{p['students']['name']},{p['month']},{p['year']},{p['amount']},{p['status']}\n"
+                yield f"{p['id']},{p['students']['name']},{p['students']['phone']},{p['students'].get('course', '')},{p['month']},{p['year']},{p.get('amount', '')},{p['status']}\n"
 
     return Response(
         generate(),
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename={table}.csv"}
     )
+
 # ---------------- Student Routes ----------------
 @routes_bp.route('/students')
 def students():
     students = Student.get_all()
     batches = Course.get_all()
-    return render_template('students.html', students=students , batches=batches)
-
-
-import pandas as pd
-from flask import request, redirect, url_for, flash
-
+    return render_template('students.html', students=students, batches=batches)
 
 @routes_bp.route('/add-batch', methods=['GET', 'POST'])
 def add_batch():
@@ -77,13 +75,8 @@ def add_batch():
         flash(f"Batch '{name}' created successfully!", "success")
         return redirect(url_for('routes.add_batch'))
 
-    # Get all batches with student counts
     batches = Course.get_all()
     return render_template('add_batch.html', batches=batches)
-
-
-import pandas as pd
-import chardet  # make sure you install this: pip install chardet
 
 @routes_bp.route('/upload_students_excel', methods=['POST'])
 def upload_students_excel():
@@ -100,33 +93,28 @@ def upload_students_excel():
 
     inserted_count = 0
     skipped_count = 0
+    duplicate_count = 0
 
     try:
         if file.filename.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(file, header=None)
         else:
-            # --- Auto-detect encoding first ---
             raw_data = file.read()
             result = chardet.detect(raw_data)
             detected_encoding = result.get("encoding", "utf-8")
-            confidence = result.get("confidence", 0)
 
             try:
-                # Try with detected encoding first
                 df = pd.read_csv(
                     pd.io.common.BytesIO(raw_data),
                     header=None,
                     encoding=detected_encoding
                 )
             except UnicodeDecodeError:
-                # Fallback to latin1 if decoding fails
                 df = pd.read_csv(
                     pd.io.common.BytesIO(raw_data),
                     header=None,
                     encoding="latin1"
                 )
-
-        existing_phones = set(s['phone'] for s in Student.get_all())
 
         for i, row in df.iterrows():
             if i == 0:
@@ -139,20 +127,23 @@ def upload_students_excel():
                 skipped_count += 1
                 continue
 
-            original_phone = phone
-            while phone in existing_phones:
-                phone = f"91{original_phone}"
-
             try:
+                # Check if student already exists in this batch
+                existing_student = Student.get_by_phone_and_batch(phone, batch_name)
+                if existing_student:
+                    duplicate_count += 1
+                    print(f"Student {name} with phone {phone} already exists in batch {batch_name}")
+                    continue
+                
+                # Create new student
                 Student.create(name=name, phone=phone, course=batch_name)
-                existing_phones.add(phone)
                 inserted_count += 1
             except Exception as e_row:
                 skipped_count += 1
                 print(f"Skipping row {i} due to error: {e_row}")
 
-        flash(f"Students uploaded successfully to batch '{batch_name}'! "
-              f"Inserted: {inserted_count}, Skipped: {skipped_count}", "success")
+        flash(f"Students uploaded to batch '{batch_name}'! "
+              f"Inserted: {inserted_count}, Duplicates skipped: {duplicate_count}, Errors: {skipped_count}", "success")
 
     except Exception as e:
         print(f"Error processing file: {e}")
@@ -160,11 +151,9 @@ def upload_students_excel():
 
     return redirect(url_for('routes.students'))
 
-
 @routes_bp.route('/add_student', methods=['GET', 'POST'])
 def add_student():
-    # Use a proper Batch model method if you have one, otherwise call supabase here
-    batches = Course.get_all()  # ✅ Cleaner than calling supabase directly
+    batches = Course.get_all()
 
     if request.method == 'POST':
         name = request.form.get('name')
@@ -176,6 +165,12 @@ def add_student():
             return redirect(url_for('routes.add_student'))
 
         try:
+            # Check if student already exists in this batch
+            existing_student = Student.get_by_phone_and_batch(phone, batch_name)
+            if existing_student:
+                flash(f"Student with phone {phone} already exists in batch {batch_name}!", "error")
+                return redirect(url_for('routes.add_student'))
+            
             Student.create(name=name, phone=phone, course=batch_name)
             flash(f'Student added successfully to batch {batch_name}!', 'success')
         except Exception as e:
@@ -188,17 +183,31 @@ def add_student():
 @routes_bp.route('/edit_student/<int:student_id>', methods=['GET', 'POST'])
 def edit_student(student_id):
     student = Student.get_by_id(student_id)
+    batches = Course.get_all()
     
     if request.method == 'POST':
         name = request.form.get('name')
         phone = request.form.get('phone')
         email = request.form.get('email')
+        batch = request.form.get('batch')
         
-        Student.update(student_id, name, phone, email)
-        flash('Student updated successfully!', 'success')
+        try:
+            # Check if another student with same phone exists in the target batch
+            if phone != student['phone'] or batch != student['course']:
+                existing_student = Student.get_by_phone_and_batch(phone, batch)
+                if existing_student and existing_student['id'] != student_id:
+                    flash(f"Another student with phone {phone} already exists in batch {batch}!", "error")
+                    return redirect(url_for('routes.edit_student', student_id=student_id))
+            
+            Student.update(student_id, name=name, phone=phone, email=email, course=batch)
+            flash('Student updated successfully!', 'success')
+        except Exception as e:
+            flash(f"Error updating student: {e}", "error")
+        
         return redirect(url_for('routes.students'))
     
-    return render_template('edit_student.html', student=student)
+    return render_template('edit_student.html', student=student, batches=batches)
+
 
 @routes_bp.route('/delete_student/<int:student_id>')
 def delete_student(student_id):
@@ -211,10 +220,12 @@ def delete_student(student_id):
 def payments():
     payments = Payment.get_all()
     students = Student.get_all()
+    batches = Course.get_all()
     current_year = datetime.now().year
     return render_template('payments.html', 
                          payments=payments, 
                          students=students,
+                         batches=batches,
                          current_year=current_year)
 
 @routes_bp.route('/add_payment', methods=['POST'])
@@ -223,18 +234,25 @@ def add_payment():
     month = request.form.get('month')
     year = request.form.get('year')
     status = request.form.get('status')
+    batch = request.form.get('batch')  # Get batch from form
     
-    Payment.create(student_id, month, year, status)
-    flash('Payment added successfully!', 'success')
+    try:
+        # Validate that the student belongs to the selected batch
+        student = Student.get_by_id(student_id)
+        if not student:
+            flash('Student not found!', 'danger')
+            return redirect(url_for('routes.payments'))
+        
+        if student.get('course') != batch:
+            flash(f'Error: Student does not belong to batch "{batch}"!', 'danger')
+            return redirect(url_for('routes.payments'))
+        
+        Payment.create(student_id, month, year, status, batch)
+        flash('Payment added successfully!', 'success')
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'danger')
+    
     return redirect(url_for('routes.payments'))
-
-
-import pandas as pd
-from flask import request, redirect, url_for, flash
-
-import pandas as pd
-import chardet  # pip install chardet
-from io import BytesIO
 
 @routes_bp.route('/upload_payments_excel', methods=['POST'])
 def upload_payments_excel():
@@ -243,19 +261,22 @@ def upload_payments_excel():
         return redirect(url_for('routes.payments'))
 
     file = request.files['excel_file']
+    selected_batch = request.form.get('batch')
+
     if file.filename == '':
         flash('No selected file', 'danger')
+        return redirect(url_for('routes.payments'))
+
+    if not selected_batch:
+        flash('Please select a batch before uploading.', 'danger')
         return redirect(url_for('routes.payments'))
 
     try:
         filename = file.filename.lower()
 
         if filename.endswith(('.xlsx', '.xls')):
-            # Excel can be read directly
             df = pd.read_excel(file)
-
         elif filename.endswith('.csv'):
-            # --- Auto detect encoding ---
             raw_data = file.read()
             result = chardet.detect(raw_data)
             detected_encoding = result.get("encoding", "utf-8")
@@ -263,24 +284,22 @@ def upload_payments_excel():
             try:
                 df = pd.read_csv(BytesIO(raw_data), encoding=detected_encoding)
             except UnicodeDecodeError:
-                # Fallback to latin1 if decoding fails
                 df = pd.read_csv(BytesIO(raw_data), encoding="latin1")
-
         else:
             flash("Unsupported file format. Please upload Excel (.xlsx, .xls) or CSV.", "danger")
             return redirect(url_for('routes.payments'))
 
-        # --- Normalize headers ---
+        # Normalize headers
         df.columns = [str(c).strip() for c in df.columns]
 
-        # --- Identify required columns ---
-        number_col = next((c for c in df.columns if "number" in c.lower()), None)
+        # Identify required columns
+        number_col = next((c for c in df.columns if "number" in c.lower() or "phone" in c.lower()), None)
         name_col = next((c for c in df.columns if "name" in c.lower()), None)
 
         if not name_col:
             raise ValueError("Could not find a 'Student Name' column")
         if not number_col:
-            raise ValueError("Could not find a 'Student Number' column")
+            raise ValueError("Could not find a 'Student Number/Phone' column")
 
         valid_months = [
             "january", "february", "march", "april", "may", "june",
@@ -289,6 +308,9 @@ def upload_payments_excel():
 
         month_cols = [c for c in df.columns if c.lower() in valid_months]
 
+        success_count = 0
+        error_count = 0
+
         for _, row in df.iterrows():
             student_number = str(row[number_col]).strip() if pd.notna(row[number_col]) else None
             student_name = str(row[name_col]).strip() if pd.notna(row[name_col]) else None
@@ -296,8 +318,21 @@ def upload_payments_excel():
             if not student_name:
                 continue
 
-            student = Student.get_by_name(student_name) or Student.get_by_number(student_number)
+            # Find student by name/number AND batch (exact match)
+            student = Student.get_by_phone_and_batch(student_number, selected_batch)
+            
+            # If not found by exact phone match, try name match within the batch
             if not student:
+                all_students = Student.get_all()
+                for s in all_students:
+                    if (s['name'].strip().lower() == student_name.strip().lower() and 
+                        s.get('course') == selected_batch):
+                        student = s
+                        break
+
+            if not student:
+                error_count += 1
+                print(f"Student {student_name} not found in batch {selected_batch}")
                 continue
 
             for month in month_cols:
@@ -306,27 +341,35 @@ def upload_payments_excel():
 
                 # Determine year
                 month_lower = month.lower()
-                year = 2024 if month_lower in ["october", "november", "december"] else 2025
+                current_year = datetime.now().year
+                year = current_year - 1 if month_lower in ["october", "november", "december"] and datetime.now().month < 10 else current_year
 
-                existing_payment = Payment.get_by_student_month_year(student["id"], month, year)
-                if existing_payment:
-                    Payment.update(existing_payment["id"], status)
-                else:
-                    Payment.create(student["id"], month, year, status)
+                # Use batch-aware check
+                existing_payment = Payment.get_by_student_month_year_batch(
+                    student["id"], month, year, selected_batch
+                )
+                
+                try:
+                    if existing_payment:
+                        Payment.update(existing_payment["id"], status)
+                    else:
+                        Payment.create(student["id"], month, year, status, selected_batch)
+                    success_count += 1
+                except Exception as e:
+                    error_count += 1
+                    print(f"Error processing payment for {student_name}: {e}")
 
-        flash("Payments uploaded successfully!", "success")
+        flash(f"Payments uploaded successfully! Processed: {success_count}, Errors: {error_count}", "success")
 
     except Exception as e:
         print(f"Error processing file: {e}")
         flash(f"Error processing file: {str(e)}", "danger")
 
     return redirect(url_for("routes.payments"))
-
 @routes_bp.route('/update_payment_status/<int:payment_id>', methods=['POST'])
 def update_payment_status(payment_id):
     status = request.form.get('status')
     Payment.update(payment_id, status)
-    print(f"Updated payment {payment_id} to status {status}")
     flash('Status Updated successfully!', 'success')
     return redirect(url_for('routes.payments'))
 
@@ -342,10 +385,8 @@ def send_reminders():
 
 @routes_bp.route("/announcement", methods=["GET"])
 def announcement():
-    # ✅ Use model layer instead of supabase directly
     courses = Course.get_all()
     return render_template("announcement.html", batches=courses)
-
 
 @routes_bp.route("/send_announcement", methods=["POST"])
 def send_announcement():
@@ -356,7 +397,6 @@ def send_announcement():
 
     results = []
 
-    # ✅ Fetch students from model if batch is selected
     if batch_name:
         all_students = Student.get_all()
         students = [s for s in all_students if s.get("course") == batch_name]
@@ -371,9 +411,6 @@ def send_announcement():
 
     flash('Announcements sent successfully!', 'success')
     return jsonify({"success": True, "results": results})
-
-
-
 
 @routes_bp.route('/dues')
 def dues():
@@ -397,12 +434,14 @@ def export_dues():
         for student in students:
             dues = []
             for payment in payments:
-                if payment['student_id'] == student['id'] and payment['status'] == 'unpaid':
+                if (payment['student_id'] == student['id'] and 
+                    payment['status'] == 'unpaid' and
+                    payment['students'].get('course') == student.get('course')):
                     if (not month or payment['month'].lower() == month.lower()) and \
                        (not batch or student['course'] == batch):
                         dues.append(f"{payment['month']} {payment['year']}")
             if dues:
-                yield f"{student['name']},{student['phone']},{student['course']},\"{','.join(dues)}\"\n"
+                yield f"{student['name']},{student['phone']},{student.get('course', '')},\"{','.join(dues)}\"\n"
     
     return Response(
         generate(),
@@ -410,13 +449,8 @@ def export_dues():
         headers={"Content-Disposition": "attachment; filename=dues.csv"}
     )
 
-
-
 @routes_bp.route('/delete_batch/<int:course_id>', methods=['POST'])
 def delete_batch(course_id):
-    """
-    Deletes a course (batch) and all students + payments inside that course.
-    """
     result = Course.delete_with_students(course_id)
 
     if result.get("error"):
@@ -424,8 +458,7 @@ def delete_batch(course_id):
     else:
         flash(f"Batch deleted successfully. {result['deleted_students']} students removed.", "success")
     
-    return redirect(url_for('routes.add_batch'))  #
-
+    return redirect(url_for('routes.add_batch'))
 
 @routes_bp.route('/send_reminders_batch', methods=['POST'])
 def send_reminders_batch():
@@ -434,13 +467,10 @@ def send_reminders_batch():
     month = data.get('month', '')
     user_message = data.get('message', '')
 
-    # Get current date and time (fixed to September 13, 2025, 10:27 PM IST)
-
     if not user_message:
         flash('Please provide a reminder message.', 'danger')
         return jsonify({'success': False, 'message': 'No message provided'})
 
-    # Call check_and_send_reminders with current time
     results = check_and_send_reminders_batch(
         user_message=user_message,
         batch=batch,
@@ -459,7 +489,6 @@ def send_reminders_batch():
 
     return jsonify({'success': success, 'results': results})
 
-
 @routes_bp.route('/send_reminder_single', methods=['POST'])
 def send_reminder_single():
     data = request.json
@@ -472,13 +501,8 @@ def send_reminder_single():
         return jsonify({"success": False, "message": "Missing phone, name, or months"}), 400
 
     try:
-        # Prepare month list string
         months_str = ", ".join(months)
-
-        # Send WhatsApp reminder
         sid_whatsapp = send_whatsapp_reminder(phone, name, months_str, custom_message=message)
-
-        # Send voice call reminder
         sid_voice = send_voice_reminder(phone, name, months_str)
 
         if sid_whatsapp or sid_voice:

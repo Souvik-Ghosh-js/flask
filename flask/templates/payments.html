@@ -217,6 +217,14 @@ button.btn-primary:hover {
                 <option>December</option>
             </select>
         </div>
+        <div class="col-md-3">
+            <select id="batchFilter" class="form-select">
+                <option value="">Filter by Batch</option>
+                {% for batch in batches %}
+                <option value="{{ batch.name }}">{{ batch.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
 
     <!-- Payments Table -->
@@ -225,7 +233,8 @@ button.btn-primary:hover {
             <thead>
                 <tr>
                     <th>Student</th>
-                    <th>Phone</th>   <!-- Added phone column -->
+                    <th>Phone</th>
+                    <th>Batch</th>
                     <th>Month</th>
                     <th>Year</th>
                     <th>Status</th>
@@ -236,7 +245,8 @@ button.btn-primary:hover {
                 {% for payment in payments %}
                 <tr>
                     <td>{{ payment.students.name }}</td>
-                    <td>{{ payment.students.phone }}</td> <!-- Show phone -->
+                    <td>{{ payment.students.phone }}</td>
+                    <td>{{ payment.students.course }}</td>
                     <td>{{ payment.month }}</td>
                     <td>{{ payment.year }}</td>
                     <td>
@@ -269,20 +279,35 @@ button.btn-primary:hover {
       <form method="POST" action="{{ url_for('routes.add_payment') }}">
         <div class="modal-body">
           <div class="mb-3">
+            <label for="batch" class="form-label">Select Batch</label>
+            <select class="form-select" id="batch" name="batch" required>
+                <option value="">Select Batch</option>
+                {% for batch in batches %}
+                <option value="{{ batch.name }}">{{ batch.name }}</option>
+                {% endfor %}
+            </select>
+            <div class="form-text">First select the batch, then search for students</div>
+          </div>
+          
+          <div class="mb-3">
             <label for="student_search" class="form-label">Student</label>
             <div class="student-search-container">
               <input type="text" 
                      class="form-control student-search-input" 
                      id="student_search" 
-                     placeholder="Search by name or phone number..."
-                     autocomplete="off">
+                     placeholder="Select batch first, then search by name or phone number..."
+                     autocomplete="off"
+                     disabled>
               <div class="student-dropdown" id="studentDropdown">
                 <!-- Dropdown items will be populated by JavaScript -->
               </div>
               <input type="hidden" id="student_id" name="student_id" required>
             </div>
+            <div id="studentSearchHelp" class="form-text" style="color: #6c757d;">
+              Please select a batch first to enable student search
+            </div>
           </div>
-          <!-- Rest of the form remains the same -->
+          
           <div class="mb-3">
             <label for="month" class="form-label">Month</label>
             <select class="form-select" id="month" name="month" required>
@@ -301,10 +326,12 @@ button.btn-primary:hover {
                 <option>December</option>
             </select>
           </div>
+          
           <div class="mb-3">
             <label for="year" class="form-label">Year</label>
-            <input type="number" class="form-control" id="year" name="year" required>
+            <input type="number" class="form-control" id="year" name="year" value="{{ current_year }}" required>
           </div>
+          
           <div class="mb-3">
             <label for="status" class="form-label">Status</label>
             <select class="form-select" id="status" name="status" required>
@@ -322,7 +349,6 @@ button.btn-primary:hover {
   </div>
 </div>
 
-
 <!-- Upload via Excel Modal -->
 <div class="modal fade" id="uploadExcelModal" tabindex="-1" aria-labelledby="uploadExcelModalLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -334,8 +360,22 @@ button.btn-primary:hover {
       <form method="POST" action="{{ url_for('routes.upload_payments_excel') }}" enctype="multipart/form-data">
         <div class="modal-body">
           <div class="mb-3">
+            <label for="batch" class="form-label">Select Batch</label>
+            <select class="form-select" id="batch" name="batch" required>
+                <option value="">Select Batch</option>
+                {% for batch in batches %}
+                <option value="{{ batch.name }}">{{ batch.name }}</option>
+                {% endfor %}
+            </select>
+            <div class="form-text">Select the batch for which you're uploading payments</div>
+          </div>
+          <div class="mb-3">
             <label for="excel_file" class="form-label">Select Excel File</label>
             <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx,.xls,.csv" required>
+            <div class="form-text">
+                File should have columns: Student Name, Student Number/Phone, and months (January, February, etc.)<br>
+                Mark cells as "paid" for paid months, leave empty or any other value for unpaid.
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -346,7 +386,6 @@ button.btn-primary:hover {
     </div>
   </div>
 </div>
-
 
 {% for payment in payments %}
 <div class="modal fade" id="changeStatusModal{{ payment.id }}" tabindex="-1" aria-labelledby="changeStatusModalLabel{{ payment.id }}" aria-hidden="true">
@@ -376,7 +415,6 @@ button.btn-primary:hover {
 </div>
 {% endfor %}
 
-
 <!-- Scripts -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.5/css/jquery.dataTables.min.css">
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -388,17 +426,21 @@ button.btn-primary:hover {
 {{ students|tojson }}
 </script>
 
+<script type="application/json" id="batches-data">
+{{ batches|tojson }}
+</script>
+
 <script>
 $(document).ready(function () {
-    // Get students data from JSON script tag
     var studentsData = JSON.parse(document.getElementById('students-data').textContent);
+    var batchesData = JSON.parse(document.getElementById('batches-data').textContent);
 
     var table = $('#paymentsTable').DataTable({
-        pageLength: 5,
+        pageLength: 10,
         lengthMenu: [5, 10, 25, 50],
         ordering: true,
         searching: true,
-        scrollY: "300px",
+        scrollY: "400px",
         scrollCollapse: true,
         language: {
             search: "Search:"
@@ -409,28 +451,63 @@ $(document).ready(function () {
     $('#monthFilter').on('change', function () {
         var month = $(this).val();
         if (month) {
-            table.column(2).search('^' + month + '$', true, false).draw();
+            table.column(3).search('^' + month + '$', true, false).draw(); // Column 3 is month
+        } else {
+            table.column(3).search('').draw();
+        }
+    });
+
+    // Batch filter dropdown
+    $('#batchFilter').on('change', function () {
+        var batch = $(this).val();
+        if (batch) {
+            table.column(2).search('^' + batch + '$', true, false).draw(); // Column 2 is batch
         } else {
             table.column(2).search('').draw();
         }
     });
 
-    // Student search functionality
+    // Add Payment Modal functionality
+    var $batchSelect = $('#batch');
     var $searchInput = $('#student_search');
     var $dropdown = $('#studentDropdown');
     var $hiddenInput = $('#student_id');
+    var $searchHelp = $('#studentSearchHelp');
     var selectedIndex = -1;
+    var currentBatch = '';
 
-    // Function to filter and display students
+    // Enable/disable student search based on batch selection
+    $batchSelect.on('change', function() {
+        currentBatch = $(this).val();
+        if (currentBatch) {
+            $searchInput.prop('disabled', false);
+            $searchInput.attr('placeholder', 'Search by name or phone number...');
+            $searchHelp.html('Search for students in batch: <strong>' + currentBatch + '</strong>');
+            $searchHelp.css('color', '#198754'); // Green color when enabled
+        } else {
+            $searchInput.prop('disabled', true);
+            $searchInput.attr('placeholder', 'Select batch first, then search by name or phone number...');
+            $searchInput.val('');
+            $hiddenInput.val('');
+            $searchHelp.html('Please select a batch first to enable student search');
+            $searchHelp.css('color', '#6c757d'); // Gray color when disabled
+            $dropdown.hide();
+        }
+    });
+
+    // Function to filter and display students for the selected batch
     function filterStudents(query) {
-        if (!query) {
+        if (!query || !currentBatch) {
             $dropdown.hide();
             return;
         }
 
+        // Filter students by batch AND search query
         var filtered = studentsData.filter(function(student) {
-            return student.name.toLowerCase().indexOf(query.toLowerCase()) !== -1 ||
-                   student.phone.indexOf(query) !== -1;
+            var matchesBatch = student.course === currentBatch;
+            var matchesQuery = student.name.toLowerCase().indexOf(query.toLowerCase()) !== -1 ||
+                              student.phone.indexOf(query) !== -1;
+            return matchesBatch && matchesQuery;
         });
 
         if (filtered.length > 0) {
@@ -446,10 +523,13 @@ $(document).ready(function () {
             selectedIndex = -1;
         } else {
             $dropdown.hide();
+            // Show no results message
+            if (query.length > 0) {
+                $dropdown.html('<div class="student-dropdown-item text-muted">No students found in batch "' + currentBatch + '" matching "' + query + '"</div>').show();
+            }
         }
     }
 
-    // Escape HTML to prevent XSS
     function escapeHtml(text) {
         var div = document.createElement('div');
         div.textContent = text;
@@ -465,6 +545,8 @@ $(document).ready(function () {
 
     // Handle dropdown item click
     $(document).on('click', '.student-dropdown-item', function() {
+        if ($(this).hasClass('text-muted')) return; // Ignore no results message
+        
         var studentId = $(this).data('id');
         var studentName = $(this).find('.student-name').text();
         var studentPhone = $(this).find('.student-phone').text();
@@ -472,11 +554,15 @@ $(document).ready(function () {
         $searchInput.val(studentName + ' ' + studentPhone);
         $hiddenInput.val(studentId);
         $dropdown.hide();
+        $searchHelp.html('Selected: <strong>' + studentName + '</strong> from batch: <strong>' + currentBatch + '</strong>');
+        $searchHelp.css('color', '#0d6efd'); // Blue color when selected
     });
 
     // Handle keyboard navigation
     $searchInput.on('keydown', function(e) {
-        var $items = $dropdown.find('.student-dropdown-item');
+        if (!currentBatch) return;
+        
+        var $items = $dropdown.find('.student-dropdown-item').not('.text-muted');
         
         if (e.keyCode === 40) { // ArrowDown
             e.preventDefault();
@@ -501,6 +587,8 @@ $(document).ready(function () {
         $items.removeClass('selected');
         if (selectedIndex >= 0) {
             $items.eq(selectedIndex).addClass('selected');
+            // Scroll to selected item
+            $items.eq(selectedIndex)[0].scrollIntoView({block: 'nearest'});
         }
     }
 
@@ -512,11 +600,35 @@ $(document).ready(function () {
         }
     });
 
-    // Clear search when modal is closed
+    // Clear form when modal is closed
     $('#addPaymentModal').on('hidden.bs.modal', function() {
-        $searchInput.val('');
+        $batchSelect.val('');
+        $searchInput.val('').prop('disabled', true);
         $hiddenInput.val('');
         $dropdown.hide();
+        $searchHelp.html('Please select a batch first to enable student search');
+        $searchHelp.css('color', '#6c757d');
+        selectedIndex = -1;
+        currentBatch = '';
+        
+        // Reset other form fields
+        $('#month').val('');
+        $('#year').val('{{ current_year }}');
+        $('#status').val('paid');
+    });
+
+    // Form validation before submission
+    $('form').on('submit', function(e) {
+        if (!$hiddenInput.val()) {
+            e.preventDefault();
+            alert('Please select a student from the dropdown');
+            return false;
+        }
+        if (!$batchSelect.val()) {
+            e.preventDefault();
+            alert('Please select a batch');
+            return false;
+        }
     });
 });
 </script>

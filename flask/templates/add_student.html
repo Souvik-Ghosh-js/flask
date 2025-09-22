@@ -96,25 +96,55 @@
     }
 </style>
 
-<div class="form-container">
-    <h2>Add Student</h2>
-    <form method="post">
-        <label for="name">Name</label>
-        <input type="text" id="name" name="name" placeholder="Enter student name" required>
+<div class="container mt-4">
+    <h1 class="mb-4">Add Student</h1>
 
-        <label for="phone">Phone</label>
-        <input type="text" id="phone" name="phone" placeholder="Enter phone number" required>
-
-        <label for="batch">Batch</label>
-        <select id="batch" name="batch" required>
-            <option value="">-- Select Batch --</option>
-            {% for batch in batches %}
-            <option value="{{ batch.name }}">{{ batch.name }}</option>
-            {% endfor %}
-        </select>
-
-        <button type="submit">Save</button>
-    </form>
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('routes.add_student') }}">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Student Name</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="phone" class="form-label">Phone Number</label>
+                    <input type="text" class="form-control" id="phone" name="phone" required>
+                    <div class="form-text">Same phone number can be used in different batches, but not in the same batch.</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="batch" class="form-label">Select Batch</label>
+                    <select class="form-select" id="batch" name="batch" required>
+                        <option value="">Select Batch</option>
+                        {% for batch in batches %}
+                        <option value="{{ batch.name }}">{{ batch.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email (Optional)</label>
+                    <input type="email" class="form-control" id="email" name="email">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Add Student</button>
+                <a href="{{ url_for('routes.students') }}" class="btn btn-secondary">Cancel</a>
+            </form>
+        </div>
+    </div>
 </div>
 
+<script>
+// Client-side validation to check for duplicates
+document.getElementById('batch').addEventListener('change', function() {
+    const phone = document.getElementById('phone').value;
+    const batch = this.value;
+    
+    if (phone && batch) {
+        // You can add AJAX call here to check for duplicates in real-time
+        // This is optional but improves user experience
+    }
+});
+</script>
 {% endblock %}
