@@ -618,18 +618,22 @@ $(document).ready(function () {
     });
 
     // Form validation before submission
-    $('form').on('submit', function(e) {
-        if (!$hiddenInput.val()) {
-            e.preventDefault();
-            alert('Please select a student from the dropdown');
-            return false;
-        }
-        if (!$batchSelect.val()) {
-            e.preventDefault();
-            alert('Please select a batch');
-            return false;
-        }
-    });
+    // Form validation before submission - ONLY for add payment form
+$('#addPaymentModal form').on('submit', function(e) {
+    var $hiddenInput = $('#student_id');
+    var $batchSelect = $('#batch');
+    
+    if (!$hiddenInput.val()) {
+        e.preventDefault();
+        alert('Please select a student from the dropdown');
+        return false;
+    }
+    if (!$batchSelect.val()) {
+        e.preventDefault();
+        alert('Please select a batch');
+        return false;
+    }
+});
 });
 </script>
 
