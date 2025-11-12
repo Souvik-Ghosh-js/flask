@@ -292,3 +292,131 @@ class Payment:
             .eq('status', 'unpaid')\
             .execute()
         return response.data
+    
+    @staticmethod
+    def bulk_create(payments_data):
+        """Bulk create multiple payments"""
+        try:
+            print(f"Bulk creating {len(payments_data)} payments...")
+            
+            # Prepare data for bulk insert - WITHOUT batch column
+            insert_data = []
+            for payment in payments_data:
+                payment_data = {
+                    'student_id': payment['student_id'],
+                    'month': payment['month'],
+                    'year': payment['year'],
+                    'status': payment['status']
+                }
+                # Remove batch since it doesn't exist in the table
+                insert_data.append(payment_data)
+            
+            # Execute bulk insert
+            response = supabase.table('payments').insert(insert_data).execute()
+            
+            if hasattr(response, 'error') and response.error:
+                print(f"Bulk create error: {response.error}")
+                return 0
+                
+            return len(response.data) if response.data else 0
+            
+        except Exception as e:
+            print(f"Bulk create exception: {e}")
+            return 0
+
+    @staticmethod
+    def bulk_update(updates_data):
+        """Bulk update multiple payments"""
+        try:
+            print(f"Bulk updating {len(updates_data)} payments...")
+            
+            success_count = 0
+            
+            # Process updates in smaller batches to avoid timeouts
+            batch_size = 50
+            for i in range(0, len(updates_data), batch_size):
+                batch = updates_data[i:i + batch_size]
+                
+                for update in batch:
+                    try:
+                        response = supabase.table('payments').update({
+                            'status': update['status']
+                        }).eq('id', update['payment_id']).execute()
+                        
+                        if not (hasattr(response, 'error') and response.error):
+                            success_count += 1
+                            
+                    except Exception as e:
+                        print(f"Error updating payment {update['payment_id']}: {e}")
+                        continue
+            
+            return success_count
+            
+        except Exception as e:
+            print(f"Bulk update exception: {e}")
+            return 0
+
+    @staticmethod
+    def bulk_upsert(payments_data):
+        """Bulk insert or update payments using upsert"""
+        try:
+            print(f"Bulk upserting {len(payments_data)} payments...")
+            
+            # Prepare data for upsert
+            insert_data = []
+            for payment in payments_data:
+                payment_data = {
+                    'student_id': payment['student_id'],
+                    'month': payment['month'],
+                    'year': payment['year'],
+                    'status': payment['status']
+                }
+                insert_data.append(payment_data)
+            
+            # Use upsert with on_conflict to handle duplicates
+            response = supabase.table('payments').upsert(
+                insert_data,
+                on_conflict='student_id,month,year'
+            ).execute()
+            
+            if hasattr(response, 'error') and response.error:
+                print(f"Bulk upsert error: {response.error}")
+                return 0
+                
+            return len(response.data) if response.data else 0
+            
+        except Exception as e:
+            print(f"Bulk upsert exception: {e}")
+            return 0
+        
+    @staticmethod
+    def get_payments_for_batch(batch_name):
+        """Get all payments for students in a specific batch"""
+        try:
+            all_payments = []
+            page = 0
+            page_size = 1000
+            
+            while True:
+                response = supabase.table('payments')\
+                    .select('*, students(name, phone, course)')\
+                    .eq('students.course', batch_name)\
+                    .range(page * page_size, (page + 1) * page_size - 1)\
+                    .execute()
+                
+                if not response.data:
+                    break
+                    
+                all_payments.extend(response.data)
+                
+                if len(response.data) < page_size:
+                    break
+                    
+                page += 1
+                
+            return all_payments
+            
+        except Exception as e:
+            print(f"Error getting payments for batch: {e}")
+            return []
+    

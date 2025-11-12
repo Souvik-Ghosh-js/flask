@@ -256,6 +256,8 @@ def add_payment():
 
 @routes_bp.route('/upload_payments_excel', methods=['POST'])
 def upload_payments_excel():
+    print("=== BULK UPLOAD WITH DEDUPLICATION ===")
+    
     if 'excel_file' not in request.files:
         flash('No file part', 'danger')
         return redirect(url_for('routes.payments'))
@@ -272,34 +274,27 @@ def upload_payments_excel():
         return redirect(url_for('routes.payments'))
 
     try:
+        # Read file
         filename = file.filename.lower()
-
         if filename.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(file)
-        elif filename.endswith('.csv'):
+        else:
             raw_data = file.read()
             result = chardet.detect(raw_data)
             detected_encoding = result.get("encoding", "utf-8")
+            df = pd.read_csv(BytesIO(raw_data), encoding=detected_encoding)
 
-            try:
-                df = pd.read_csv(BytesIO(raw_data), encoding=detected_encoding)
-            except UnicodeDecodeError:
-                df = pd.read_csv(BytesIO(raw_data), encoding="latin1")
-        else:
-            flash("Unsupported file format. Please upload Excel (.xlsx, .xls) or CSV.", "danger")
-            return redirect(url_for('routes.payments'))
+        print(f"File loaded: {df.shape[0]} rows, {df.shape[1]} columns")
 
         # Normalize headers
         df.columns = [str(c).strip() for c in df.columns]
-
-        # Identify required columns
+        
+        # Identify columns
         number_col = next((c for c in df.columns if "number" in c.lower() or "phone" in c.lower()), None)
         name_col = next((c for c in df.columns if "name" in c.lower()), None)
 
         if not name_col:
             raise ValueError("Could not find a 'Student Name' column")
-        if not number_col:
-            raise ValueError("Could not find a 'Student Number/Phone' column")
 
         valid_months = [
             "january", "february", "march", "april", "may", "june",
@@ -307,65 +302,113 @@ def upload_payments_excel():
         ]
 
         month_cols = [c for c in df.columns if c.lower() in valid_months]
+        print(f"Processing {len(month_cols)} months: {month_cols}")
 
-        success_count = 0
-        error_count = 0
+        if not month_cols:
+            flash("No valid month columns found in the file", "danger")
+            return redirect(url_for('routes.payments'))
 
-        for _, row in df.iterrows():
-            student_number = str(row[number_col]).strip() if pd.notna(row[number_col]) else None
-            student_name = str(row[name_col]).strip() if pd.notna(row[name_col]) else None
+        # STEP 1: Load students
+        print("Step 1: Loading students...")
+        all_students = Student.get_all()
+        batch_students = [s for s in all_students if s.get('course') == selected_batch]
+        
+        # Create fast lookup dictionaries
+        student_by_phone = {s['phone']: s for s in batch_students}
+        student_by_name_lower = {s['name'].strip().lower(): s for s in batch_students}
+        
+        print(f"Found {len(batch_students)} students in batch '{selected_batch}'")
+
+        # STEP 2: Collect payment data with deduplication
+        print("Step 2: Collecting and deduplicating payment data...")
+        
+        payments_dict = {}  # Use dictionary to automatically handle duplicates
+        current_year = datetime.now().year
+        paid_count = 0
+        unpaid_count = 0
+        duplicate_count = 0
+
+        for index, row in df.iterrows():
+            student_number = str(row[number_col]).strip() if pd.notna(row[number_col]) else ""
+            student_name = str(row[name_col]).strip() if pd.notna(row[name_col]) else ""
 
             if not student_name:
                 continue
 
-            # Find student by name/number AND batch (exact match)
-            student = Student.get_by_phone_and_batch(student_number, selected_batch)
-            
-            # If not found by exact phone match, try name match within the batch
-            if not student:
-                all_students = Student.get_all()
-                for s in all_students:
-                    if (s['name'].strip().lower() == student_name.strip().lower() and 
-                        s.get('course') == selected_batch):
-                        student = s
-                        break
+            # Find student
+            student = None
+            if student_number and student_number in student_by_phone:
+                student = student_by_phone[student_number]
+            elif student_name.lower() in student_by_name_lower:
+                student = student_by_name_lower[student_name.lower()]
 
             if not student:
-                error_count += 1
-                print(f"Student {student_name} not found in batch {selected_batch}")
+                print(f"Student not found: {student_name}")
                 continue
 
+            # Process each month
             for month in month_cols:
-                raw_value = str(row[month]).strip().lower() if pd.notna(row[month]) else ""
-                status = "paid" if raw_value == "paid" else "unpaid"
+                raw_value = row[month]
+                
+                # Determine status
+                if pd.isna(raw_value) or str(raw_value).strip().lower() != 'paid':
+                    status = "unpaid"
+                else:
+                    status = "paid"
 
                 # Determine year
                 month_lower = month.lower()
-                current_year = datetime.now().year
                 year = current_year - 1 if month_lower in ["october", "november", "december"] and datetime.now().month < 10 else current_year
 
-                # Use batch-aware check
-                existing_payment = Payment.get_by_student_month_year_batch(
-                    student["id"], month, year, selected_batch
-                )
+                # Create unique key for this student-month-year
+                unique_key = f"{student['id']}_{month}_{year}"
                 
-                try:
-                    if existing_payment:
-                        Payment.update(existing_payment["id"], status)
-                    else:
-                        Payment.create(student["id"], month, year, status, selected_batch)
-                    success_count += 1
-                except Exception as e:
-                    error_count += 1
-                    print(f"Error processing payment for {student_name}: {e}")
+                # If this combination already exists, count as duplicate and use the latest value
+                if unique_key in payments_dict:
+                    duplicate_count += 1
+                    print(f"Duplicate found: {unique_key} - using latest value")
+                
+                # Always use the latest value (last occurrence in Excel wins)
+                payments_dict[unique_key] = {
+                    'student_id': student['id'],
+                    'month': month,
+                    'year': year,
+                    'status': status
+                }
+                
+                # Count for statistics
+                if status == "paid":
+                    paid_count += 1
+                else:
+                    unpaid_count += 1
 
-        flash(f"Payments uploaded successfully! Processed: {success_count}, Errors: {error_count}", "success")
+        # Convert dictionary back to list
+        payments_data = list(payments_dict.values())
+        
+        print(f"After deduplication: {len(payments_data)} unique payments (Removed {duplicate_count} duplicates)")
+
+        # STEP 3: Execute bulk upsert on deduplicated data
+        print("Step 3: Executing bulk upsert on deduplicated data...")
+        
+        if payments_data:
+            processed_count = Payment.bulk_upsert(payments_data)
+            print(f"Successfully processed {processed_count} payments")
+            
+            flash(f"Payments uploaded successfully! Processed {processed_count} unique payment records (Paid: {paid_count}, Unpaid: {unpaid_count}, Duplicates removed: {duplicate_count})", "success")
+        else:
+            flash("No payments to process from the file", "warning")
 
     except Exception as e:
-        print(f"Error processing file: {e}")
+        print(f"=== CRITICAL ERROR ===")
+        print(f"Error: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         flash(f"Error processing file: {str(e)}", "danger")
 
     return redirect(url_for("routes.payments"))
+
+
+
 @routes_bp.route('/update_payment_status/<int:payment_id>', methods=['POST'])
 def update_payment_status(payment_id):
     status = request.form.get('status')
