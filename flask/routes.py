@@ -341,11 +341,28 @@ def upload_payments_excel():
         
         print(f"Found {len(batch_students)} students in batch '{selected_batch}'")
 
-        # STEP 2: Collect payment data with deduplication
-        print("Step 2: Collecting and deduplicating payment data...")
+        # STEP 2: Determine year assignment for each column (ONCE)
+        print("Step 2: Determining year assignment for each month column...")
+        
+        # Pre-determine the year for each month column
+        month_year_mapping = {}
+        current_year = 2024
+        
+        for month in month_cols:
+            month_lower = month.lower()
+            
+            # If we encounter January, switch to 2025 for this and all subsequent months
+            if month_lower == "january" and current_year == 2024:
+                current_year = 2025
+                print(f"Encountered January, switching to year {current_year} for remaining months")
+            
+            month_year_mapping[month] = current_year
+            print(f"Column '{month}' assigned to year {current_year}")
+
+        # STEP 3: Collect payment data with deduplication
+        print("Step 3: Collecting and deduplicating payment data...")
         
         payments_dict = {}  # Use dictionary to automatically handle duplicates
-        current_year = datetime.now().year
         paid_count = 0
         unpaid_count = 0
         duplicate_count = 0
@@ -368,7 +385,7 @@ def upload_payments_excel():
                 print(f"Student not found: {student_name}")
                 continue
 
-            # Process each month
+            # Process each month using pre-determined year mapping
             for month in month_cols:
                 raw_value = row[month]
                 
@@ -378,39 +395,39 @@ def upload_payments_excel():
                 else:
                     status = "paid"
 
-                # Determine year
-                month_lower = month.lower()
-                year = current_year - 1 if month_lower in ["october", "november", "december"] and datetime.now().month < 10 else current_year
-
+                # Get the pre-determined year for this column
+                year = month_year_mapping[month]
+                
                 # Create unique key for this student-month-year
                 unique_key = f"{student['id']}_{month}_{year}"
                 
-                # If this combination already exists, count as duplicate and use the latest value
-                if unique_key in payments_dict:
-                    duplicate_count += 1
-                    print(f"Duplicate found: {unique_key} - using latest value")
-                
-                # Always use the latest value (last occurrence in Excel wins)
-                payments_dict[unique_key] = {
-                    'student_id': student['id'],
-                    'month': month,
-                    'year': year,
-                    'status': status
-                }
-                
-                # Count for statistics
-                if status == "paid":
-                    paid_count += 1
+                # Only add if this combination doesn't exist (keep first occurrence)
+                if unique_key not in payments_dict:
+                    payments_dict[unique_key] = {
+                        'student_id': student['id'],
+                        'month': month,
+                        'year': year,
+                        'status': status
+                    }
+                    
+                    # Count for statistics
+                    if status == "paid":
+                        paid_count += 1
+                    else:
+                        unpaid_count += 1
                 else:
-                    unpaid_count += 1
+                    # This is a duplicate - skip it
+                    duplicate_count += 1
+                    print(f"Duplicate found: {unique_key} - keeping first occurrence")
 
         # Convert dictionary back to list
         payments_data = list(payments_dict.values())
         
         print(f"After deduplication: {len(payments_data)} unique payments (Removed {duplicate_count} duplicates)")
+        print(f"Payment breakdown - Paid: {paid_count}, Unpaid: {unpaid_count}")
 
-        # STEP 3: Execute bulk upsert on deduplicated data
-        print("Step 3: Executing bulk upsert on deduplicated data...")
+        # STEP 4: Execute bulk upsert on deduplicated data
+        print("Step 4: Executing bulk upsert on deduplicated data...")
         
         if payments_data:
             processed_count = Payment.bulk_upsert(payments_data)
@@ -428,7 +445,6 @@ def upload_payments_excel():
         flash(f"Error processing file: {str(e)}", "danger")
 
     return redirect(url_for("routes.payments"))
-
 
 
 @routes_bp.route('/update_payment_status/<int:payment_id>', methods=['POST'])
