@@ -163,7 +163,7 @@
                     <textarea name="reminderMessage" id="reminderMessage" rows="4" class="form-control"
                         placeholder="Type your note here. You can use {name} and {month} placeholders if needed."></textarea>
                     <small class="text-muted">
-                        Example: "Hi {name}, please clear your fees for {month}."  
+                        Example: "Hi {name}, please clear your fees for {month}."
                         (Placeholders will be replaced automatically.)
                     </small>
                 </div>
@@ -228,16 +228,15 @@
         }
 
         if (selectedStudent) {
+            // Single student reminder (existing code)
             $.ajax({
                 url: '{{ url_for("routes.send_reminder_single") }}',
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
-                   
-                        phone: selectedStudent.phone,
-                        name: selectedStudent.name,
-                        months: selectedStudent.months.split(', ').filter(Boolean),
-                    
+                    phone: selectedStudent.phone,
+                    name: selectedStudent.name,
+                    months: selectedStudent.months.split(', ').filter(Boolean),
                     message: userMessage
                 }),
                 success: function (response) {
@@ -252,39 +251,28 @@
                 }
             });
         } else {
-            const students = [];
-            $('#duesTable tbody tr').each(function () {
-                const rowBatch = $(this).find('td:eq(2)').text();
-                const dues = $(this).find('td:eq(3)').text();
-                if ((batch === '' || rowBatch === batch) && (filterMonth === '' || dues.includes(filterMonth))) {
-                    students.push({
-                        phone: $(this).find('td:eq(1)').text(),
-                        name: $(this).find('td:eq(0)').text(),
-                        months: dues.split(', ').filter(Boolean)
-                    });
-                }
-            });
-
+            // Batch reminders - send filters to server
             $.ajax({
                 url: '{{ url_for("routes.send_reminders_batch") }}',
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
-                    students: students,
+                    batch: batch,
+                    month: filterMonth,
                     message: userMessage
                 }),
                 success: function (response) {
                     $('#reminderModal').modal('hide');
                     alert(response.message || 'Reminders sent successfully!');
                 },
-                error: function () {
+                error: function (xhr) {
                     $('#reminderModal').modal('hide');
-                    alert('Error sending reminders.');
+                    const errorMsg = xhr.responseJSON ? xhr.responseJSON.message : 'Error sending reminders.';
+                    alert(errorMsg);
                 }
             });
         }
     });
-
     function exportDues() {
         const batch = $('#batchFilter').val();
         const month = $('#monthFilter').val();

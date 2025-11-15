@@ -91,63 +91,85 @@ def upload_students_excel():
         flash("No file uploaded", "error")
         return redirect(url_for('routes.students'))
 
-    inserted_count = 0
-    skipped_count = 0
-    duplicate_count = 0
-
     try:
+        # Read file
         if file.filename.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(file, header=None)
         else:
             raw_data = file.read()
             result = chardet.detect(raw_data)
             detected_encoding = result.get("encoding", "utf-8")
-
             try:
-                df = pd.read_csv(
-                    pd.io.common.BytesIO(raw_data),
-                    header=None,
-                    encoding=detected_encoding
-                )
+                df = pd.read_csv(BytesIO(raw_data), header=None, encoding=detected_encoding)
             except UnicodeDecodeError:
-                df = pd.read_csv(
-                    pd.io.common.BytesIO(raw_data),
-                    header=None,
-                    encoding="latin1"
-                )
+                df = pd.read_csv(BytesIO(raw_data), header=None, encoding="latin1")
 
+        print(f"Processing {len(df)} rows from uploaded file")
+
+        # Get existing students in this batch for duplicate checking
+        print("Fetching existing students in batch...")
+        all_students = Student.get_all()
+        existing_students_dict = {
+            student['phone']: student for student in all_students 
+            if student.get('course') == batch_name
+        }
+        existing_phones = set(existing_students_dict.keys())
+        print(f"Found {len(existing_phones)} existing students in batch '{batch_name}'")
+
+        # Collect valid student data
+        print("Processing rows...")
+        students_to_insert = []
+        duplicate_count = 0
+        invalid_count = 0
+        
         for i, row in df.iterrows():
-            if i == 0:
+            if i == 0:  # Skip header row
                 continue
 
             phone = str(row[0]).strip() if pd.notna(row[0]) else ""
             name = str(row[1]).strip() if pd.notna(row[1]) else ""
 
+            # Validate required fields
             if not phone or not name:
-                skipped_count += 1
+                invalid_count += 1
                 continue
 
-            try:
-                # Check if student already exists in this batch
-                existing_student = Student.get_by_phone_and_batch(phone, batch_name)
-                if existing_student:
-                    duplicate_count += 1
-                    print(f"Student {name} with phone {phone} already exists in batch {batch_name}")
-                    continue
-                
-                # Create new student
-                Student.create(name=name, phone=phone, course=batch_name)
-                inserted_count += 1
-            except Exception as e_row:
-                skipped_count += 1
-                print(f"Skipping row {i} due to error: {e_row}")
+            # Check for duplicates in batch
+            if phone in existing_phones:
+                duplicate_count += 1
+                continue
 
-        flash(f"Students uploaded to batch '{batch_name}'! "
-              f"Inserted: {inserted_count}, Duplicates skipped: {duplicate_count}, Errors: {skipped_count}", "success")
+            students_to_insert.append({
+                'name': name,
+                'phone': phone,
+                'course': batch_name
+            })
+            existing_phones.add(phone)  # Prevent duplicates in same upload
+
+        print(f"Prepared {len(students_to_insert)} students for bulk insertion")
+
+        # Bulk insert using the new method
+        if students_to_insert:
+            inserted_count = Student.bulk_create(students_to_insert)
+            flash(
+                f"Bulk upload successful! "
+                f"Inserted: {inserted_count} students into batch '{batch_name}'. "
+                f"Duplicates skipped: {duplicate_count}, "
+                f"Invalid rows: {invalid_count}",
+                "success"
+            )
+        else:
+            flash(
+                f"No new students to add. "
+                f"Duplicates: {duplicate_count}, Invalid rows: {invalid_count}",
+                "warning"
+            )
 
     except Exception as e:
         print(f"Error processing file: {e}")
-        flash(f"Error processing file: {e}", "error")
+        import traceback
+        traceback.print_exc()
+        flash(f"Error processing file: {str(e)}", "error")
 
     return redirect(url_for('routes.students'))
 
@@ -506,33 +528,107 @@ def delete_batch(course_id):
 @routes_bp.route('/send_reminders_batch', methods=['POST'])
 def send_reminders_batch():
     data = request.json
-    batch = data.get('batch', '')
-    month = data.get('month', '')
+    batch_filter = data.get('batch', '')
+    month_filter = data.get('month', '')
     user_message = data.get('message', '')
 
     if not user_message:
-        flash('Please provide a reminder message.', 'danger')
-        return jsonify({'success': False, 'message': 'No message provided'})
+        return jsonify({'success': False, 'message': 'Please provide a reminder message.'}), 400
 
-    results = check_and_send_reminders_batch(
-        user_message=user_message,
-        batch=batch,
-        month=month
-    )
+    try:
+        # Get all students and payments
+        all_students = Student.get_all()
+        all_payments = Payment.get_all()
+        
+        # Filter students based on batch
+        if batch_filter:
+            filtered_students = [s for s in all_students if s.get('course') == batch_filter]
+        else:
+            filtered_students = all_students
+        
+        results = []
+        
+        for student in filtered_students:
+            # Get unpaid payments for this student
+            unpaid_payments = []
+            for payment in all_payments:
+                if (payment['student_id'] == student['id'] and 
+                    payment['status'] == 'unpaid' and
+                    payment['students'].get('course') == student.get('course')):
+                    
+                    # Apply month filter if specified
+                    if not month_filter or payment['month'].lower() == month_filter.lower():
+                        unpaid_payments.append(f"{payment['month']} {payment['year']}")
+            
+            # If student has dues after filtering, send reminder
+            if unpaid_payments:
+                months_str = ", ".join(unpaid_payments)
+                try:
+                    # Send WhatsApp reminder
+                    sid_whatsapp = send_whatsapp_reminder(
+                        student['phone'], 
+                        student['name'], 
+                        months_str, 
+                        custom_message=user_message
+                    )
+                    print(f"WhatsApp reminder sent to {student['name']} ({student['phone']}) for months: {months_str}")
+                    # Send voice reminder
+                    sid_voice = send_voice_reminder(
+                        student['phone'], 
+                        student['name'], 
+                        months_str
+                    )
+                    
+                    results.append({
+                        'phone': student['phone'],
+                        'name': student['name'],
+                        'months': months_str,
+                        'status': 'sent',
+                        'whatsapp_sid': sid_whatsapp,
+                        'voice_sid': sid_voice
+                    })
+                    
+                except Exception as e:
+                    results.append({
+                        'phone': student['phone'],
+                        'name': student['name'],
+                        'months': months_str,
+                        'status': f'failed: {str(e)}'
+                    })
 
-    if not results:
-        flash('No students with dues found for the selected filters.', 'warning')
-        return jsonify({'success': False, 'message': 'No students with dues found'})
+        if not results:
+            return jsonify({
+                'success': False, 
+                'message': 'No students with dues found for the selected filters.'
+            }), 404
 
-    success = any(r['status'] == 'sent' for r in results)
-    if success:
-        flash('Reminders sent successfully!', 'success')
-    else:
-        flash('Some reminders failed to send.', 'warning')
+        # Count successful sends
+        successful_sends = sum(1 for r in results if r['status'] == 'sent')
+        total_students = len(results)
+        
+        if successful_sends > 0:
+            message = f'Reminders sent successfully! {successful_sends}/{total_students} students notified.'
+            return jsonify({
+                'success': True, 
+                'message': message,
+                'results': results
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'message': 'All reminders failed to send.',
+                'results': results
+            }), 500
 
-    return jsonify({'success': success, 'results': results})
-
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'message': f'Error processing batch reminders: {str(e)}'
+        }), 500
 @routes_bp.route('/send_reminder_single', methods=['POST'])
+
+
+
 def send_reminder_single():
     data = request.json
     phone = data.get("phone")

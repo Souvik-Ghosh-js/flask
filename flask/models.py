@@ -74,6 +74,63 @@ class Student:
     def delete(student_id):
         response = supabase.table('students').delete().eq('id', student_id).execute()
         return response.data
+    
+    @staticmethod
+    def bulk_create(students_data):
+        """
+        Bulk insert multiple students using Supabase
+        """
+        if not students_data:
+            return 0
+
+        try:
+            # Prepare data for bulk insert
+            insert_data = []
+            for student in students_data:
+                student_data = {
+                    'name': student['name'],
+                    'phone': student['phone'],
+                    'course': student['course']
+                }
+                # Add email if provided
+                if 'email' in student and student['email']:
+                    student_data['email'] = student['email']
+                
+                insert_data.append(student_data)
+
+            # Execute bulk insert
+            response = supabase.table('students').insert(insert_data).execute()
+            
+            if hasattr(response, 'error') and response.error:
+                raise Exception(f"Supabase error: {response.error}")
+                
+            return len(response.data) if response.data else 0
+            
+        except Exception as e:
+            print(f"Bulk insert error: {e}")
+            
+            # Fallback: individual inserts
+            print("Falling back to individual inserts...")
+            success_count = 0
+            for student_data in students_data:
+                try:
+                    Student.create(
+                        name=student_data['name'],
+                        phone=student_data['phone'],
+                        course=student_data['course'],
+                        email=student_data.get('email')
+                    )
+                    success_count += 1
+                except Exception as individual_error:
+                    print(f"Failed to insert student {student_data['name']}: {individual_error}")
+                    continue
+                    
+            return success_count
+
+
+
+
+
 class Course:
     @staticmethod
     def get_all():
